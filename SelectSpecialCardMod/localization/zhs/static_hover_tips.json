@@ -1,0 +1,8 @@
+{
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.title": "除外堆",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.description": "被除外的卡牌在本场战斗中不会再出现。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.empty": "除外堆是空的。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.title": "额外堆",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.description": "放在这里的卡不会被抽到，也不会进入抽牌堆、弃牌堆或消耗堆，只能由特定效果取用。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.empty": "额外堆是空的。"
+}

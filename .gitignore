@@ -1,0 +1,12 @@
+# Godot 4+ specific ignores
+.godot/
+*.godot
+/android/
+.claude/
+.trae/
+.vscode/
+*.md
+*.import
+*.uid
+*.png
+*.tmp
