@@ -25,14 +25,15 @@ namespace SelectSpecialCardMod.Scripts.Intent;
 //   ② 作为 MonsterDeckTurnPatch 的重入守卫——原生 PerformMove 会再次经过同一个 Prefix。
 internal static class MonsterCardEffects
 {
-    internal static bool InPlay { get; private set; }
+    private static readonly System.Threading.AsyncLocal<int> PlayDepth = new();
+    internal static bool InPlay => PlayDepth.Value > 0;
 
     private static readonly ThrowingPlayerChoiceContext Ctx = new();
 
     internal static async Task Play(Creature actor, CardModel card)
     {
         if (actor.Monster == null || actor.IsDead) return;
-        InPlay = true;
+        PlayDepth.Value++;
         try
         {
             if (card is not MonsterMoveCard move) return; // 废牌：无效果，仅消耗一个出牌位
@@ -47,10 +48,11 @@ internal static class MonsterCardEffects
                 try
                 {
                     await move.SourceMove.PerformMove(targets);
+                    MonsterEffectRecord.CommitRecord();
                 }
                 finally
                 {
-                    MonsterEffectRecord.CommitRecord();
+                    MonsterEffectRecord.AbortRecord();
                 }
                 return;
             }
@@ -64,7 +66,7 @@ internal static class MonsterCardEffects
         }
         finally
         {
-            InPlay = false;
+            PlayDepth.Value--;
         }
     }
 

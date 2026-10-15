@@ -31,7 +31,7 @@ public class ZhenZhuShiJieCard : SelectSpecialBaseCard
             Owner,
             ZhuLeiFilter.IsCard,
             p => p is SelectSpecialCardPool,
-            1, source: this);
+            1, source: this, minAmount: 1, requireManualConfirmation: true);
 
         // 施加能力：打出「珠泪」卡时对随机敌人造成9点伤害
         await PowerCmd.Apply<ZhenZhuShiJiePower>(choiceContext, Owner.Creature, 1, Owner.Creature, this);

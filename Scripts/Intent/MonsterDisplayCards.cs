@@ -384,6 +384,22 @@ public class MonsterMoveCard : MonsterDisplayCard
         return false;
     }
 
+    private string _effectSnapshot = "";
+    private MonsterMoveEffects? _frozenEffects;
+    [MegaCrit.Sts2.Core.Saves.Runs.SavedProperty]
+    public string EffectSnapshot
+    {
+        get => _effectSnapshot;
+        set
+        {
+            _frozenEffects = string.IsNullOrEmpty(value) ? null
+                : (System.Text.Json.JsonSerializer.Deserialize<MonsterEffectSnapshot>(value)
+                    ?? throw new System.Text.Json.JsonException("Missing effect snapshot.")).ToEffects();
+            _effectSnapshot = value;
+        }
+    }
+    internal MonsterMoveEffects? FrozenEffects => _frozenEffects;
+
     public MonsterMoveCard() : base(CardType.Skill, CardRarity.Common, TargetType.AnyEnemy)
     {
     }
@@ -409,18 +425,7 @@ public class MonsterMoveCard : MonsterDisplayCard
     {
         string moveId = SourceMove?.Id ?? "";
         // 数值取值：人工覆盖表（作者指定）→ 观测（最准）→ 静态表；卡面描述用同一份（见 IntentCardMapper）
-        var manual = MonsterManualTable.Lookup(MonsterKind, moveId);
-        MonsterMoveEffects fx;
-        if (manual != null)
-        {
-            fx = MonsterManualTable.ToEffects(manual);
-        }
-        else
-        {
-            var obs = MonsterEffectRecord.Get(MonsterKind, moveId);
-            var table = MonsterEffectTable.Lookup(MonsterKind, moveId, IntentCardMapper.FindSource(this));
-            fx = MonsterMoveEffects.Merge(obs, table);
-        }
+        var fx = IntentCardMapper.EffectsFor(this) ?? new MonsterMoveEffects();
         int block = fx.Block;
         int heal = fx.Heal;
         bool selfPowersApplied = false;
@@ -444,7 +449,7 @@ public class MonsterMoveCard : MonsterDisplayCard
                     }
                     break;
                 case IntentType.Defend:
-                    await CreatureCmd.GainBlock(Owner.Creature, block > 0 ? block : 5m, ValueProp.Move, cardPlay);
+                    await CreatureCmd.GainBlock(Owner.Creature, fx.BlockKnown ? block : 5m, ValueProp.Move, cardPlay);
                     break;
                 case IntentType.Buff:
                     if (selfPowersApplied) break;   // 记录的是"整个招式"的效果，多个强化意图只结算一次
@@ -452,7 +457,7 @@ public class MonsterMoveCard : MonsterDisplayCard
                     if (fx.SelfPowers.Count > 0)
                         foreach (var power in fx.SelfPowers)
                             await ApplyRecordedPower(choiceContext, power, Owner.Creature);
-                    else
+                    else if (!fx.SelfKnown)
                         await PowerCmd.Apply<StrengthPower>(choiceContext, Owner.Creature, 1, Owner.Creature, this);
                     break;
                 case IntentType.Debuff:
@@ -469,11 +474,11 @@ public class MonsterMoveCard : MonsterDisplayCard
                     if (fx.PlayerPowers.Count > 0)
                         foreach (var power in fx.PlayerPowers)
                             await ApplyRecordedPower(choiceContext, power, cardPlay.Target);
-                    else
+                    else if (!fx.PlayerKnown)
                         await PowerCmd.Apply<WeakPower>(choiceContext, cardPlay.Target, 1, Owner.Creature, this);
                     break;
                 case IntentType.Heal:
-                    await CreatureCmd.Heal(Owner.Creature, heal > 0 ? heal : 5m);
+                    await CreatureCmd.Heal(Owner.Creature, fx.HealKnown ? heal : 5m);
                     break;
                 // 塞状态牌 / 塞诅咒牌：反手把对应废牌塞回目标怪物的牌堆
                 // （含此意图的招式卡被「强夺」抢来后，玩家打出时生效）
@@ -491,7 +496,7 @@ public class MonsterMoveCard : MonsterDisplayCard
                     if (fx.SummonedMonsters.Count > 0)
                         foreach (var (kind, hp) in fx.SummonedMonsters)
                             await MonsterPet.SummonKind(choiceContext, Owner, kind, hp);
-                    else if (cardPlay.Target != null)
+                    else if (!fx.SummonsKnown && cardPlay.Target != null)
                         await MonsterPet.Summon(choiceContext, Owner, cardPlay.Target);
                     break;
                 // 逃跑：玩家自己遁走（烟雾弹），战斗按通过结算、无奖励

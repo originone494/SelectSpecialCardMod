@@ -43,7 +43,7 @@ public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpe
         new DamageVar(1m, ValueProp.Move),
     ];
 
-    public override int StarLevel => 4;
+    public override int StarLevel => _leveledUp ? 4 : 3;
 
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.TianBeiLong,
@@ -90,8 +90,13 @@ public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpe
     public bool CanActivateSpecialEffect(Player player) => true;
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
-        await CardCmd.Exhaust(choiceContext, this);
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
+        var paid = await CardCmd.Exhaust(choiceContext, this);
+        if (paid?.success != true) return false;
 
         var retrieved = await SelectToolCmd.RetrieverCard(
             choiceContext,
@@ -103,6 +108,7 @@ public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpe
         {
             card.EnergyCost.SetThisTurn(0);   // 那张卡在这个回合可以免费打出
         }
+        return true;
     }
 
     // 登场：这张卡可以免费打出，变为「调整」，等级上升1星

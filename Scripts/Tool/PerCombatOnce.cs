@@ -1,16 +1,10 @@
 using MegaCrit.Sts2.Core.Combat;
-
+using MegaCrit.Sts2.Core.Entities.Players;
+using SelectSpecialCardMod.Scripts.Rules;
 namespace SelectSpecialCardMod.Scripts.Tool;
-
-// 「一场战斗一次」的通用记录：键 = scope + 卡名（注册 Id），值 = 最近一次发动的战斗。
-// 换战斗自动失效，不需要任何重置钩子。
 public static class PerCombatOnce
 {
-    private static readonly Dictionary<string, CombatId?> Used = new();
-
-    public static bool IsUsed(string key)
-        => Used.TryGetValue(key, out var combat) && combat == CombatManager.Instance.CurrentCombatId;
-
-    public static void Mark(string key)
-        => Used[key] = CombatManager.Instance.CurrentCombatId;
+    public static string Key(string scope, string cardEntry) => scope + ":" + cardEntry;
+    public static bool IsUsed(Player player, string key) => PlayerEffectState.For(player).IsUnavailable(key, PlayerEffectState.Combat());
+    public static void Mark(Player player, string key) => PlayerEffectState.For(player).Mark(key, PlayerEffectState.Combat());
 }

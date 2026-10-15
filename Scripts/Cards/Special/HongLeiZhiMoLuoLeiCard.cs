@@ -74,14 +74,18 @@ public class HongLeiZhiMoLuoLeiCard : SelectSpecialBaseCard, IShiJiCard, ISpecia
     public bool CanActivateSpecialEffect(Player player) => true;
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
-        await SelectToolCmd.RetrieverCard(
+        var retrieved = await SelectToolCmd.RetrieverCard(
             choiceContext,
             player,
             c => IsKeMo(c) && c is not HongLeiZhiMoLuoLeiCard,
             p => p is SelectSpecialCardPool,
             1, source: this, isExhaust: true,
             minAmount: 1, requireManualConfirmation: true);   // 范围 (1,1)：必须选 1 张，只有 1 张候选也要自己点
+        return retrieved.Count > 0;
     }
 
     // 时机：从消耗堆发动

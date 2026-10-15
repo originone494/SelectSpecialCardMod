@@ -1,40 +1,69 @@
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using HarmonyLib;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
 
 namespace SelectSpecialCardMod.Scripts.Tool;
 
-// 给 CardPileCmd.Draw 打一个"抽牌窗口"括号，用于把「抽牌」和「因效果加入手牌」区分开。
-//
-// 为什么需要：抽牌内部就是 `await Add(card, hand)`，和"效果把卡加进手里"
-// 走的是同一条入堆路径，AfterCardChangedPiles 里无法分辨；而钩子又是 await 的，
-// 在 AfterCardChangedPiles 里等不到紧随其后的 AfterCardDrawn。
-//
-// 所有抽牌都汇到这一个重载（单张 Draw、多张 Draw、DrawWithoutBlockingOnOtherPlayers 都调它）。
-// 计数按玩家分开存，避免多人同时抽牌时互相干扰；用 Finalizer 保证原方法抛异常时也能把计数还原。
-[HarmonyPatch(typeof(CardPileCmd), nameof(CardPileCmd.Draw),
-    new[] { typeof(PlayerChoiceContext), typeof(decimal), typeof(Player), typeof(bool) })]
+// 只包住 Draw 状态机实际调用的单卡 Add，不把抽牌回调中的其他加牌当作抽牌。
+[HarmonyPatch]
 public static class DrawWindowPatch
 {
-    private static readonly Dictionary<Player, int> Depth = new();
+    private static readonly HashSet<CardModel> DrawingCards = [];
 
-    public static bool IsInsideDraw(Player? player)
-        => player != null && Depth.TryGetValue(player, out int depth) && depth > 0;
+    public static bool IsDrawing(CardModel card) => DrawingCards.Contains(card);
 
-    [HarmonyPrefix]
-    static void Prefix(Player player)
+    static MethodBase TargetMethod()
     {
-        Depth[player] = Depth.TryGetValue(player, out int depth) ? depth + 1 : 1;
+        var parameters = new[] { typeof(PlayerChoiceContext), typeof(decimal), typeof(Player), typeof(bool) };
+        var draw = AccessTools.Method(typeof(CardPileCmd), "DrawInternal", parameters)
+            ?? AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Draw), parameters);
+        // 游戏发行程序集可能移除了 AsyncStateMachineAttribute，按该重载的参数字段匹配。
+        var machine = draw.GetCustomAttribute<AsyncStateMachineAttribute>()?.StateMachineType
+            ?? typeof(CardPileCmd).GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+                .Single(t => t.Name.StartsWith($"<{draw.Name}>d__", StringComparison.Ordinal)
+                    && t.GetField("count")?.FieldType == typeof(decimal)
+                    && t.GetField("player")?.FieldType == typeof(Player)
+                    && t.GetField("fromHandDraw")?.FieldType == typeof(bool));
+        return AccessTools.Method(machine, nameof(IAsyncStateMachine.MoveNext));
     }
 
-    // 用 Finalizer 而不是 Postfix：原方法抛异常时也要把计数还原，否则这个玩家会被永久当成"正在抽牌"
-    [HarmonyFinalizer]
-    static void Finalizer(Player player)
+    static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
     {
-        if (!Depth.TryGetValue(player, out int depth)) return;
-        if (depth <= 1) Depth.Remove(player);
-        else Depth[player] = depth - 1;
+        var add = AccessTools.Method(typeof(CardPileCmd), nameof(CardPileCmd.Add),
+            [typeof(CardModel), typeof(CardPile), typeof(CardPilePosition), typeof(AbstractModel), typeof(bool)]);
+        var wrappedAdd = AccessTools.Method(typeof(DrawWindowPatch), nameof(AddDrawnCard));
+        int replaced = 0;
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(add))
+            {
+                instruction.operand = wrappedAdd;
+                replaced++;
+            }
+            yield return instruction;
+        }
+        if (replaced != 1) throw new InvalidOperationException($"Draw 单卡入堆调用数量异常：{replaced}");
+    }
+
+    public static async Task<CardPileAddResult> AddDrawnCard(CardModel card, CardPile pile,
+        CardPilePosition position, AbstractModel? clonedBy, bool skipVisuals)
+    {
+        bool marked = pile.Type == PileType.Hand && DrawingCards.Add(card);
+        try
+        {
+            return await CardPileCmd.Add(card, pile, position, clonedBy, skipVisuals);
+        }
+        finally
+        {
+            if (marked) DrawingCards.Remove(card);
+        }
     }
 }

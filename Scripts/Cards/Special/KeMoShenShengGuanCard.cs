@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using STS2RitsuLib.Combat.HandSize;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -70,12 +71,18 @@ public class KeMoShenShengGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, 
         new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_SHEN_SHENG_GUAN_PICK");
 
     public bool CanActivateSpecialEffect(Player player)
-        => PileType.Exhaust.GetPile(player).Cards.Any(KeMoEquip.CanEquipTo);
+        => PileType.Hand.GetPile(player).Cards.Count < MaxHandSizeCalculator.Calculate(player)
+           && PileType.Exhaust.GetPile(player).Cards.Any(KeMoEquip.CanEquipTo);
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
+        await TryActivateSpecialEffect(choiceContext, player);
+    }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    {
+        if (!CanActivateSpecialEffect(player)) return false;
         var exhaustPile = PileType.Exhaust.GetPile(player);
-        if (!exhaustPile.Cards.Any(KeMoEquip.CanEquipTo)) return;
 
         // CardPrefsConfirm：只有 1 张候选也不能替玩家自动选
         var picked = (await CardSelectCmd.FromCombatPile(
@@ -84,14 +91,18 @@ public class KeMoShenShengGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, 
             player,
             CardPrefsConfirm(this, PickPrompt, 1, 1),
             filter: KeMoEquip.CanEquipTo)).FirstOrDefault();
-        if (picked == null) return;
+        if (picked == null || picked.Pile?.Type != PileType.Exhaust
+            || PileType.Hand.GetPile(player).Cards.Count >= MaxHandSizeCalculator.Calculate(player)) return false;
 
         // 加入手牌
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
         await CardPileCmd.Add(picked, PileType.Hand);
+        if (picked.Pile?.Type != PileType.Hand) return false;
 
         // 这张卡（神圣棺）作为装备给那张卡装备：Link3 → 伤害 +3×6 = +18，
         // 并获得「攻击拥有格挡的敌人时造成双倍伤害」
         await KeMoEquip.EquipTo(this, picked, 3, doubleVsBlock: true);
+        return Pile?.Type == Entry.EquipPile;
     }
 
     // 召唤条件：消耗包含「光恶魔」的攻击卡 2 张以上（Link3 = 3 点：3 张普通，或 1 张 Link2 + 1 张普通）
@@ -114,7 +125,7 @@ public class KeMoShenShengGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, 
             SummonCostPrompt, this);
         if (chosen == null) return false;
 
-        await SelectToolCmd.ExhaustCards(ctx, chosen);
+        if (!await MaterialPayment.Exhaust(ctx, player, chosen, 2, PileType.Hand)) return false;
         return true;
     }
 }

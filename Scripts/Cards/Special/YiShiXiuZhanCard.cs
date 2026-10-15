@@ -29,8 +29,8 @@ public class YiShiXiuZhanCard : SelectSpecialBaseCard
         // 抽1张牌
         await CardPileCmd.Draw(choiceContext, 1, Owner);
 
-        // 这个回合所有人造成的伤害为0：给玩家自己和所有敌人施加「一时休战」
-        await PowerCmd.Apply<YiShiXiuZhanPower>(choiceContext, Owner.Creature, 1, Owner.Creature, this);
+        // 给所有玩家和敌人施加，保持各自原有的到期机制。
+        await PowerCmd.Apply<YiShiXiuZhanPower>(choiceContext, Owner.Creature.CombatState!.PlayerCreatures, 1, Owner.Creature, this);
         await PowerCmd.Apply<YiShiXiuZhanPower>(choiceContext, Owner.Creature.CombatState!.HittableEnemies, 1, Owner.Creature, this);
     }
 }

@@ -30,6 +30,7 @@ internal static class MonsterEffectRecord
     private sealed class Entry
     {
         internal string Version = "";
+        internal bool Complete;
         internal int Block;
         internal int Heal;
         internal readonly List<PowerEffect> SelfPowers = new();
@@ -42,12 +43,22 @@ internal static class MonsterEffectRecord
     private static string? _gameVersion;
 
     // ── 当前记录状态（MonsterCardEffects.Play 在出招前后开/关）──
-    private static bool _active;
-    private static string _kind = "";
-    private static string _moveId = "";
-    private static Creature? _actor;
-    private static MonsterMoveEffects? _draft;
-    private static List<(string Kind, int MaxHp)> _enemiesBefore = new();
+    private sealed class Recording
+    {
+        internal bool Active;
+        internal string Kind = "", MoveId = "";
+        internal Creature? Actor;
+        internal MonsterMoveEffects? Draft;
+        internal List<(string Kind, int MaxHp)> EnemiesBefore = [];
+        internal Recording? Parent;
+    }
+    private static readonly System.Threading.AsyncLocal<Recording?> Current = new();
+    private static bool _active { get => Current.Value?.Active == true; set => Current.Value!.Active = value; }
+    private static string _kind { get => Current.Value!.Kind; set => Current.Value!.Kind = value; }
+    private static string _moveId { get => Current.Value!.MoveId; set => Current.Value!.MoveId = value; }
+    private static Creature? _actor { get => Current.Value?.Actor; set => Current.Value!.Actor = value; }
+    private static MonsterMoveEffects? _draft { get => Current.Value?.Draft; set => Current.Value!.Draft = value; }
+    private static List<(string Kind, int MaxHp)> _enemiesBefore { get => Current.Value!.EnemiesBefore; set => Current.Value!.EnemiesBefore = value; }
 
     private static string Key(string monsterKind, string moveId) => monsterKind + "|" + moveId;
 
@@ -82,7 +93,7 @@ internal static class MonsterEffectRecord
 
     internal static void BeginRecord(Creature actor, string? monsterKind, string? moveId)
     {
-        Reset();
+        Current.Value = new Recording { Parent = Current.Value };
         if (string.IsNullOrEmpty(monsterKind) || string.IsNullOrEmpty(moveId)) return;
         if (!ShouldRecord(GetEntry(monsterKind, moveId))) return;
 
@@ -90,7 +101,7 @@ internal static class MonsterEffectRecord
         _actor = actor;
         _kind = monsterKind;
         _moveId = moveId;
-        _draft = new MonsterMoveEffects();
+        _draft = new MonsterMoveEffects { BlockKnown = true, HealKnown = true, SelfKnown = true, PlayerKnown = true, SummonsKnown = true };
         _enemiesBefore = Enemies(actor);
     }
 
@@ -100,7 +111,7 @@ internal static class MonsterEffectRecord
         {
             AddSummons(_enemiesBefore, Enemies(_actor), _draft.SummonedMonsters);
 
-            var entry = new Entry { Version = GameVersion, Block = _draft.Block, Heal = _draft.Heal };
+            var entry = new Entry { Version = GameVersion, Complete = true, Block = _draft.Block, Heal = _draft.Heal };
             entry.SelfPowers.AddRange(_draft.SelfPowers);
             entry.PlayerPowers.AddRange(_draft.PlayerPowers);
             entry.Summoned.AddRange(_draft.SummonedMonsters);
@@ -110,14 +121,14 @@ internal static class MonsterEffectRecord
             Converted[key] = _draft;
             Save();
         }
-        Reset();
+        if (Current.Value != null) Current.Value.Active = false;
     }
 
     // ── 以下三个由效果命令的补丁调用；不在记录期间时全部空转 ──
 
-    internal static void NotePower(string? powerName, decimal amount, Creature? target)
+    internal static void NotePower(string? powerName, decimal amount, Creature? target, Creature? applier)
     {
-        if (!_active || _draft == null || target == null || amount <= 0m || string.IsNullOrEmpty(powerName)) return;
+        if (!_active || !ReferenceEquals(applier, _actor) || _draft == null || target == null || amount <= 0m || string.IsNullOrEmpty(powerName)) return;
         if (ReferenceEquals(target, _actor)) AddPower(_draft.SelfPowers, powerName, (int)amount);
         else if (target.IsPlayer) AddPower(_draft.PlayerPowers, powerName, (int)amount);
     }
@@ -143,7 +154,7 @@ internal static class MonsterEffectRecord
         var entry = GetEntry(monsterKind, moveId);
         if (entry == null) return null;
 
-        var fx = new MonsterMoveEffects { Block = entry.Block, Heal = entry.Heal };
+        var fx = new MonsterMoveEffects { Block = entry.Block, Heal = entry.Heal, BlockKnown = entry.Complete || entry.Block > 0, HealKnown = entry.Complete || entry.Heal > 0, SelfKnown = entry.Complete || entry.SelfPowers.Count > 0, PlayerKnown = entry.Complete || entry.PlayerPowers.Count > 0, SummonsKnown = entry.Complete || entry.Summoned.Count > 0 };
         fx.SelfPowers.AddRange(entry.SelfPowers);
         fx.PlayerPowers.AddRange(entry.PlayerPowers);
         fx.SummonedMonsters.AddRange(entry.Summoned);
@@ -154,13 +165,8 @@ internal static class MonsterEffectRecord
     private static Entry? GetEntry(string monsterKind, string moveId)
         => Store().TryGetValue(Key(monsterKind, moveId), out var entry) ? entry : null;
 
-    private static void Reset()
-    {
-        _active = false;
-        _draft = null;
-        _actor = null;
-        _enemiesBefore = new List<(string, int)>();
-    }
+    private static void Reset() { if (Current.Value != null) Current.Value = Current.Value.Parent; }
+    internal static void AbortRecord() => Reset();
 
     // 同一招重复施加同一种能力时把层数累加
     private static void AddPower(List<PowerEffect> into, string power, int amount)
@@ -246,8 +252,7 @@ internal static class MonsterEffectRecord
             DirAccess.MakeDirRecursiveAbsolute(SaveDir);
             var root = new Godot.Collections.Dictionary();
             foreach (var pair in _store!) root[pair.Key] = ToVariant(pair.Value);
-            using var file = FileAccess.Open(SavePath, FileAccess.ModeFlags.Write);
-            file?.StoreString(Json.Stringify(root, "  "));
+            SelectSpecialCardMod.Scripts.Tool.AtomicJsonStore.Write(SavePath, Json.Stringify(root, "  "));
         }
         catch (Exception e)
         {
@@ -267,6 +272,8 @@ internal static class MonsterEffectRecord
         return new Godot.Collections.Dictionary
         {
             { "version", entry.Version },
+            { "complete", entry.Complete },
+            { "schema", 2 },
             { "block", entry.Block },
             { "heal", entry.Heal },
             { "self", self },
@@ -280,6 +287,7 @@ internal static class MonsterEffectRecord
         var entry = new Entry
         {
             Version = d.TryGetValue("version", out var version) ? version.AsString() : "",
+            Complete = d.TryGetValue("complete", out var complete) && complete.AsBool(),
             Block = ReadInt(d, "block"),
             Heal = ReadInt(d, "heal"),
         };

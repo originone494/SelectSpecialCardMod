@@ -107,11 +107,11 @@ public abstract class SelectSpecialBaseCard(int energyCost, CardType type, CardR
     {
         var p = new LocString(prompt.LocTable, prompt.LocEntryKey);
         if (source != null) p.Add("CardName", source.Title);
-        return new CardSelectorPrefs(p, min, max);
+        // 必选流程即使候选数量刚好够，也必须由玩家选择并确认。
+        return new CardSelectorPrefs(p, min, max) { RequireManualConfirmation = min > 0 };
     }
 
-    // 与 CardPrefs 相同，但**要求手动确认**：游戏的选择界面在"候选数量 ≤ 最少选择数"且未开启确认时
-    // 会**自动帮玩家选**（哪怕只有 1 张可选），这个开关能关掉那个行为，让玩家自己点。
+    // 包括可选流程也要求手动确认；保留现有调用入口。
     protected static CardSelectorPrefs CardPrefsConfirm(CardModel source, LocString prompt, int min, int max)
     {
         var p = new LocString(prompt.LocTable, prompt.LocEntryKey);

@@ -17,7 +17,7 @@ namespace SelectSpecialCardMod.Scripts.Tool;
 // 额外堆的"应有内容"与补齐规则。
 //
 // 应有内容 = ① 局外选好的初始额外卡组 + ② 系列补给：
-//   · 拥有珠泪系列的卡 → 每个珠泪额外怪兽按"拥有张数"补（上限 3）
+//   · 拥有珠泪系列的卡（含支援卡「珍珠世界」）→ 每个珠泪额外怪兽按"拥有张数"补（上限 3）
 //   · 拥有天杯龙／灿幻系列的卡 → 每个灿幻额外怪兽按"拥有张数"补（上限 3）
 //   额外堆内**同名卡不超过 3 张**。
 //
@@ -44,7 +44,9 @@ public static class ExtraDeckSeries
     private static readonly Series ZhuLeiSeries = new()
     {
         Key = "珠泪",
-        IsSeriesCard = c => c.Tags.Contains(SelectTags.ZhuLei),
+        // 珍珠世界没有「珠泪」标签，但它是检索珠泪怪兽的系列入口。
+        // 仅将其纳入补给；不添加标签，避免改变检索候选与打出珠泪卡的伤害判定。
+        IsSeriesCard = c => c.Tags.Contains(SelectTags.ZhuLei) || c is ZhenZhuShiJieCard,
         ExtraMonsters =
         [
             typeof(ZhuLeiShuiXianCard),
@@ -66,24 +68,33 @@ public static class ExtraDeckSeries
         ],
     };
 
-    private static readonly Series[] AllSeries = [ZhuLeiSeries, CanHuanSeries];
+    private static readonly Series YiXiangMingSeries = new()
+    {
+        Key = "异响鸣",
+        IsSeriesCard = c => c.Tags.Contains(SelectTags.YiXiangMing),
+        ExtraMonsters =
+        [
+            typeof(YiXiangMingYiShenGuangYaoTianShiCard),
+            typeof(YiXiangMingShenYiFengBaoEMoCard),
+        ],
+    };
+
+    private static bool _registered;
 
     public static void Register()
     {
-        // 战斗开始：满编（保证每场战斗都是全新的一副额外卡组）
-        RitsuLibFramework.SubscribeLifecycle<CombatStartingEvent>(evt => Settle(evt.RunState));
-        // 战斗结束：恢复原样（胜负都补一次，逃跑也走这里）
-        RitsuLibFramework.SubscribeLifecycle<CombatEndedEvent>(evt => Settle(evt.RunState));
-        RitsuLibFramework.SubscribeLifecycle<CombatVictoryEvent>(evt => Settle(evt.RunState));
-        // 进新房间：领奖励／商店买卡之后补（系列卡变多 → 应有内容变多）
-        RitsuLibFramework.SubscribeLifecycle<RoomEnteredEvent>(evt => Settle(evt.RunState));
+        if (_registered) return;
+        foreach (var series in new[] { ZhuLeiSeries, CanHuanSeries, YiXiangMingSeries })
+            SeriesRegistry.Register(new ExtraDeckSeriesRule(series.Key, series.IsSeriesCard, series.ExtraMonsters));
+        _registered = true;
+        // RunSetup hooks await reconciliation on all peers, rather than local fire-and-forget callbacks.
     }
 
     // ── 供"从额外堆召唤"使用 ──
 
     /// <summary>额外堆里的全部卡（按堆内顺序）。</summary>
     public static List<CardModel> Cards(Player player)
-        => Entry.ExtraPile.GetPile(player).Cards.ToList();
+        => FeatureStatus.Checked && !FeatureStatus.RunSetup ? [] : Entry.ExtraPile.GetPile(player).Cards.ToList();
 
     /// <summary>在额外堆里找指定类型的一张（没有则 null）。</summary>
     public static CardModel? FindByType(Player player, Type type)
@@ -94,7 +105,10 @@ public static class ExtraDeckSeries
     {
         // 静默：「额外堆·已用」是无界面牌堆，没有可展示的目的地，飞一次反而让人看不懂。
         // 真正该看的演出是"召唤出来的副本飞进手牌"，那一步由调用方负责。
-        await CardPileCmd.Add(extraCard, Entry.ExtraUsedPile, CardPilePosition.Bottom, null, skipVisuals: true);
+        if (extraCard.Owner != player || extraCard.Pile?.Type != Entry.ExtraPile || extraCard.HasBeenRemovedFromState)
+            throw new InvalidOperationException("Extra monster is no longer available.");
+        var result = await CardPileCmd.Add(extraCard, Entry.ExtraUsedPile, CardPilePosition.Bottom, null, skipVisuals: true);
+        if (!result.success) throw new InvalidOperationException("Could not consume extra monster.");
     }
 
     /// <summary>
@@ -105,23 +119,67 @@ public static class ExtraDeckSeries
     ///     并播一次**飞向额外堆**的演出，作为玩家唯一需要看到的反馈（观感＝"它回到额外卡组了"）。
     /// 这样额外堆里永远只会有持久卡，不会再出现"战斗副本被塞进持久牌堆 → 战斗结束变成废卡"的问题。
     /// </summary>
-    public static async Task ReturnExtraMonster(Player player, CardModel combatCopy)
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<CardModel, CardModel> Origins = new();
+    public static CardModel CreateSummonedCopy(Player player, CardModel persistent)
     {
-        // ① 持久卡还原（静默）
+        var combat = player.Creature.CombatState ?? throw new InvalidOperationException("No combat for summon.");
+        var copy = combat.CloneCard(persistent);
+        Origins.Add(copy, persistent);
+        return copy;
+    }
+    public static async Task<bool> ReturnExtraMonster(Player player, CardModel combatCopy)
+    {
+        if (combatCopy.Owner != player || combatCopy.HasBeenRemovedFromState
+            || combatCopy.Pile?.Type == Entry.ExtraUsedPile) return false;
+
+        // ① 只恢复 RunState 实际拥有的持久卡；已用堆也包含退场的战斗副本。
         var usedPile = Entry.ExtraUsedPile.GetPile(player);
-        var persistent = usedPile?.Cards.FirstOrDefault(c => c.GetType() == combatCopy.GetType());
+        Origins.TryGetValue(combatCopy, out var persistent);
+        if (persistent == null)
+            persistent = usedPile?.Cards.FirstOrDefault(c => c != combatCopy
+                && c.GetType() == combatCopy.GetType() && player.RunState.ContainsCard(c)); // legacy/generated copy
+        if (persistent?.Pile?.Type != Entry.ExtraUsedPile) persistent = null;
         if (persistent != null)
         {
-            await CardPileCmd.Add(persistent, Entry.ExtraPile, CardPilePosition.Bottom, null, skipVisuals: true);
+            RestorePersistentExtraCard(player, persistent, Entry.ExtraPile.GetPile(player));
+            if (persistent.Pile?.Type != Entry.ExtraPile) return false;
         }
 
         // ② 战斗副本退场 + 唯一需要被看到的演出：飞向额外堆
         SelectToolCmd.PlayFlyToPile(combatCopy, Entry.ExtraPile);
         await CardPileCmd.Add(combatCopy, Entry.ExtraUsedPile, CardPilePosition.Bottom, null, skipVisuals: true);
+        return combatCopy.Pile?.Type == Entry.ExtraUsedPile;
+    }
+
+    internal static void RestorePersistentExtraCard(Player player, CardModel persistent, CardPile extraPile)
+    {
+        var usedPile = persistent.Pile;
+        if (persistent.Owner != player || persistent.HasBeenRemovedFromState
+            || !player.RunState.ContainsCard(persistent)
+            || usedPile?.Type != Entry.ExtraUsedPile || extraPile.Type != Entry.ExtraPile
+            || !ReferenceEquals(extraPile, Entry.ExtraPile.GetPile(player)))
+            throw new InvalidOperationException("Cannot restore an unavailable persistent extra monster.");
+
+        // 已用堆同时保存持久资产和战斗副本。持久资产没有加入 CombatState，
+        // 原版 CardPileCmd.Add 会因来源堆属于战斗牌堆而拒绝它。
+        // 这里只搬回 RunState 拥有的原实体；战斗副本仍走下面的原版入堆命令。
+        // 同步完成账本转移并发送牌堆通知，不将持久资产注册成战斗卡，
+        // 避免战斗结束时将它清理成 HasBeenRemovedFromState。
+        usedPile.RemoveInternal(persistent);
+        extraPile.AddInternal(persistent);
+        extraPile.InvokeCardAddFinished();
     }
 
     /// <summary>把额外堆补齐到"应有内容"（只补不缺，不会删；幂等，可反复调用）。</summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Player, SemaphoreSlim> Gates = new();
     public static async Task EnsureFull(Player player)
+    {
+        var gate = Gates.GetValue(player, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync();
+        try { await EnsureFullCore(player); }
+        finally { gate.Release(); }
+    }
+    private static async Task EnsureFullCore(Player player)
     {
         try
         {
@@ -147,10 +205,11 @@ public static class ExtraDeckSeries
                     Entry.Logger.Error($"[ExtraDeckSeries] 找不到卡牌模板：{type.Name}");
                     continue;
                 }
-                for (int i = 0; i < missing; i++)
+                while (pile.Cards.Count(c => c.GetType() == type) < want)
                 {
                     var card = player.RunState.CreateCard(canonical, player);
-                    await CardPileCmd.Add(card, Entry.ExtraPile);
+                    var result = await CardPileCmd.Add(card, Entry.ExtraPile);
+                    if (!result.success) throw new InvalidOperationException($"Cannot replenish {card.Id}");
                 }
                 Entry.Logger.Info($"[ExtraDeckSeries] 额外堆补齐 {canonical.Title} ×{missing}（现有 {have}→{want}，上限 {MaxCopiesPerName}）");
             }
@@ -158,17 +217,11 @@ public static class ExtraDeckSeries
         catch (Exception e)
         {
             Entry.Logger.Error($"[ExtraDeckSeries] 补齐额外堆失败：{e}");
+            throw;
         }
     }
 
     // ── 内部 ──
-
-    private static void Settle(IRunState runState)
-    {
-        var me = LocalContext.GetMe(runState.Players);
-        if (me == null) return;
-        _ = EnsureFull(me);
-    }
 
     // 应有内容（类型 → 张数）
     private static Dictionary<Type, int> Desired(Player player)
@@ -182,14 +235,14 @@ public static class ExtraDeckSeries
             want[type] = Math.Min(MaxCopiesPerName, current + count);
         }
 
-        // ① 局外选好的初始额外卡组（每张 1 份）
-        foreach (var key in ExtraDeckStore.Selected)
+        // ① 本局冻结的初始额外卡组，局外配置变化只作用于下一局。
+        foreach (var key in ExtraDeckRunState.Initial(player))
         {
             if (ExtraDeckStore.FindByKey(key) is { } card) Add(card.GetType(), 1);
         }
 
         // ② 系列补给：拥有的系列卡有几张，就给每个该系列额外怪兽几份（上限 3）
-        foreach (var series in AllSeries)
+        foreach (var series in SeriesRegistry.All)
         {
             int owned = CountOwned(player, series);
             foreach (var type in series.ExtraMonsters) Add(type, owned);
@@ -198,8 +251,8 @@ public static class ExtraDeckSeries
     }
 
     // 玩家"拥有"的该系列卡张数：只数卡组里的（额外堆不算），并且排除额外怪兽本身
-    private static int CountOwned(Player player, Series series)
+    private static int CountOwned(Player player, ExtraDeckSeriesRule series)
         => PileType.Deck.GetPile(player).Cards
             .Where(c => !c.Tags.Contains(SelectTags.ExtraMonster))
-            .Count(series.IsSeriesCard);
+            .Count(series.Matches);
 }

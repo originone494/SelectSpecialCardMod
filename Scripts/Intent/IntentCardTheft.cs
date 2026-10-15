@@ -102,6 +102,8 @@ internal static class IntentCardTheft
         JunkPools.Remove(creature);
     }
 
+    internal static void Reset() { Stolen.Clear(); JunkPools.Clear(); }
+
     private static bool Consume(Creature creature, System.Func<State, int> get, System.Action<State> dec)
     {
         if (!Stolen.TryGetValue(creature, out var s) || get(s) <= 0) return false;
@@ -109,14 +111,18 @@ internal static class IntentCardTheft
         return true;
     }
 
-    // 当前正在执行意图的怪物（怪物行动串行，静态字段足够）。
+    // 当前异步行动作用域的怪物；嵌套行动恢复父级，不污染调用方。
     // CreatureCmd.Add/Escape 只有目标参数、没有施加者——召唤/逃跑拦截靠它定位计数归属；
     // 怪物行动之外（战斗布置/玩家召唤/遗物效果）时为 null，一律放行。
-    internal static Creature? CurrentActor { get; private set; }
-
-    internal static void BeginActorScope(Creature actor) => CurrentActor = actor;
-
-    internal static void EndActorScope() => CurrentActor = null;
+    internal sealed class ActorState(Creature actor) { internal Creature Actor = actor; internal bool SkipSealAdds; }
+    private static readonly SelectSpecialCardMod.Scripts.Rules.AsyncScope<ActorState> ActorScope = new();
+    internal static Creature? CurrentActor => ActorScope.Current?.Actor;
+    internal static bool SkipSealAdds { get => ActorScope.Current?.SkipSealAdds == true;
+        set { if (ActorScope.Current is { } state) state.SkipSealAdds = value; } }
+    internal static SelectSpecialCardMod.Scripts.Rules.AsyncScope<ActorState>.Frame BeginActorScope(Creature actor)
+        => ActorScope.Enter(new ActorState(actor));
+    internal static void RestoreActorScope(SelectSpecialCardMod.Scripts.Rules.AsyncScope<ActorState>.Frame frame) => ActorScope.Restore(frame);
+    internal static void CompleteActorScope(SelectSpecialCardMod.Scripts.Rules.AsyncScope<ActorState>.Frame frame) => ActorScope.Complete(frame);
 
     // 意图重建（新的一手）或怪物离场：旧状态作废
     internal static void Invalidate(Creature? creature)

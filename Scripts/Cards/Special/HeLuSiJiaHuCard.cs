@@ -55,7 +55,7 @@ public class HeLuSiJiaHuCard : SelectSpecialBaseCard
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        HorusFreePlay.Consume(this);
+        HorusFreePlay.Consume(this, cardPlay);
         // 读取计算值：结算时本卡已离开手牌，求值结果 = 当前手牌数 + 1，与预览口径一致
         int drawCount = (int)DynamicVars.EvaluateValueOrDefault("Cards");
         await CardPileCmd.Draw(choiceContext, drawCount, Owner);

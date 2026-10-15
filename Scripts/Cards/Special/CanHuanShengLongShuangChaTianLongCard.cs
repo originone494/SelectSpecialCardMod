@@ -141,7 +141,8 @@ public class CanHuanShengLongShuangChaTianLongCard : SelectSpecialBaseCard, IDen
             context: ctx,
             player: player,
             filter: c => c.Type == CardType.Skill,
-            source: this)).ToList();
+            // 时机独立于普通打出，选择完成后立即恢复手牌节点。
+            source: null!)).ToList();
         foreach (var card in selected)
         {
             await CardCmd.Exhaust(ctx, card);

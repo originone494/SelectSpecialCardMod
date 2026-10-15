@@ -67,21 +67,26 @@ public class ZhuLeiSaiRenCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffe
         => PileType.Hand.GetPile(player).Cards.Any(c => c != this);
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
         var hand = PileType.Hand.GetPile(player);
-        if (hand.Cards.Count == 0) return;
+        if (hand.Cards.Count == 0) return false;
 
-        // 由玩家自己选（范围 0~1，可放弃）：没选就什么都不发生
+        // 由玩家自己选（范围 1~1，发动后必须选一张）：无有效选项时防御性退出
         var selected = (await CardSelectCmd.FromHand(
-            prefs: CardPrefs(this, SelectionScreenPrompt, 0, 1) with { RequireManualConfirmation = true },
+            prefs: CardPrefs(this, SelectionScreenPrompt, 1, 1) with { RequireManualConfirmation = true },
             context: choiceContext,
             player: player,
             filter: c => c != this,
             source: this)).ToList();
-        if (selected.Count == 0) return;
+        if (selected.Count != 1 || selected[0].Owner != player || selected[0].Pile?.Type != PileType.Hand) return false;
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
 
         await CardCmd.Discard(choiceContext, selected[0]);
         EnergyCost.SetThisTurn(0);
+        return true;
     }
 
     // 送墓：进行一次珠泪融合；触发过珠泪融合的情况，将这张卡打出

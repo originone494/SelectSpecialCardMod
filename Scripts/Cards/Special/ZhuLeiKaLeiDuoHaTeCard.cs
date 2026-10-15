@@ -21,8 +21,8 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
 // 珠泪·卡雷多哈特（融合怪兽）
 //   打出：造成15点伤害
-//   驻场：这张卡被打出、或任意「珠泪怪兽」触发送墓的场合 → 给予所有敌人1层虚弱
-//   送墓：同名卡一回合一次 → 打出这张卡 → 加入手牌 → 「检索」并丢弃1张「珠泪下级怪兽」卡
+//   驻场：登场时、或「珠泪怪兽」触发送墓时 → 给予所有敌人2层虚弱
+//   送墓：同名卡一回合一次 → 打出这张卡 → 加入手牌 → 「检索」并丢弃1张「珠泪」卡
 public class ZhuLeiKaLeiDuoHaTeCard : SelectSpecialBaseCard, ISongMuCard, ISongMuObserver
 {
     public ZhuLeiKaLeiDuoHaTeCard() : base(2, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
@@ -59,19 +59,33 @@ public class ZhuLeiKaLeiDuoHaTeCard : SelectSpecialBaseCard, ISongMuCard, ISongM
         // 造成15点伤害
         ArgumentNullException.ThrowIfNull(cardPlay.Target, "cardPlay.Target");
         await CreatureCmd.Damage(choiceContext, cardPlay.Target, DynamicVars.Damage.BaseValue, ValueProp.Move, Owner.Creature, this, cardPlay);
-
-        // 驻场（"这张卡被打出"的场合）：给予所有敌人1层虚弱
-        await GiveWeakToAllEnemies(choiceContext);
     }
 
-    // 驻场（"「珠泪怪兽」触发送墓"的场合）：本卡在手上时，给予所有敌人1层虚弱。
-    // 本卡自己触发送墓时它已在弃牌堆、不在手上，所以不会重复触发——那次它"被打出"的虚弱由上面的 OnPlay 给。
+    // 驻场的登场分支：每次因效果加入手牌时生效，抽牌不算。
+    // 不走有同名战斗次数限制的「登场」关键字后注，文案没有给此驻场分支次数限制。
+    public override async Task AfterCardChangedPiles(CardModel card, PileType oldPileType, AbstractModel? clonedBy)
+    {
+        await base.AfterCardChangedPiles(card, oldPileType, clonedBy);
+        if (card != this || oldPileType == PileType.Hand || Pile?.Type != PileType.Hand
+            || DrawWindowPatch.IsDrawing(this)) return;
+        if (CombatState?.HittableEnemies.Any() != true) return;
+        var combat = CombatState;
+        if (!await ZhuChangEffectVfx.Play(this, card)) return;
+        if (CombatState != combat || Pile?.Type != PileType.Hand) return;
+        await GiveWeakToAllEnemies(new BlockingPlayerChoiceContext());
+    }
+
+    // 驻场的送墓分支：本卡在手上时，给予所有敌人2层虚弱。
+    // 自身送墓时不在手牌；回手的登场分支已生效，不追溯响应自身送墓的末尾广播。
     public async Task OnSongMu(PlayerChoiceContext ctx, Player player, CardModel trigger)
     {
-        if (player != Owner) return;
+        if (player != Owner || trigger == this) return;
         if (!trigger.Tags.Contains(SelectTags.ZhuLeiGuaiShou)) return;
         if (!PileType.Hand.GetPile(Owner).Cards.Contains(this)) return;
 
+        if (CombatState?.HittableEnemies.Any() != true) return;
+        if (!await ZhuChangEffectVfx.Play(this, trigger)) return;
+        if (CombatState == null || Pile?.Type != PileType.Hand) return;
         await GiveWeakToAllEnemies(ctx);
     }
 
@@ -80,16 +94,16 @@ public class ZhuLeiKaLeiDuoHaTeCard : SelectSpecialBaseCard, ISongMuCard, ISongM
         if (CombatState == null) return;
         foreach (Creature enemy in CombatState.HittableEnemies.ToList())
         {
-            await PowerCmd.Apply<WeakPower>(ctx, enemy, 1, Owner.Creature, this);
+            await PowerCmd.Apply<WeakPower>(ctx, enemy, 2, Owner.Creature, this);
         }
     }
 
     // 送墓：同名卡一回合一次 → 打出这张卡 → 将这张卡加入手牌
-    //       → 「检索」并丢弃1张「珠泪下级怪兽」卡
+    //       → 「检索」并丢弃1张「珠泪」卡
     public async Task SongMuSpecial(PlayerChoiceContext ctx, Player player)
     {
         // 同名卡一回合一次（按卡名：多张同名卡共享一次）
-        string onceKey = PerTurnOnce.Key("SongMu", Id.Entry);
+        string onceKey = PerTurnOnce.Key("SongMu", Id.ToString());
         if (PerTurnOnce.IsUsed(player, onceKey)) return;
         // 先记账：连锁里再丢掉一张同名卡时，它的送墓不会二次发动
         PerTurnOnce.Mark(player, onceKey);
@@ -104,8 +118,9 @@ public class ZhuLeiKaLeiDuoHaTeCard : SelectSpecialBaseCard, ISongMuCard, ISongM
         // ② 将这张卡加入手牌
         await CardPileCmd.Add(this, PileType.Hand);
 
-        // ③ 「检索」并丢弃1张除「珠泪融合怪兽」以外的「珠泪」卡
-        await SelectToolCmd.RetrieverCard(ctx, player, ZhuLeiFilter.IsCardExceptFusionMonster,
-            p => p is SelectSpecialCardPool, 1, true, source: this);
+        // ③ 「检索」并丢弃1张「珠泪」卡；通用检索入口会排除额外怪兽。
+        await SelectToolCmd.RetrieverCard(ctx, player, ZhuLeiFilter.IsCard,
+            p => p is SelectSpecialCardPool, 1, true, source: this,
+            minAmount: 1, requireManualConfirmation: true);
     }
 }

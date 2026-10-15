@@ -1,0 +1,21 @@
+<Project Sdk="Godot.NET.Sdk/4.5.1">
+ <PropertyGroup><TargetFramework>net9.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableDynamicLoading>true</EnableDynamicLoading></PropertyGroup>
+ <ItemGroup>
+  <Reference Include="SelectSpecialCardMod"><HintPath>../../.godot/mono/temp/bin/Debug/SelectSpecialCardMod.dll</HintPath></Reference>
+  <Reference Include="sts2"><HintPath>D:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/sts2.dll</HintPath></Reference>
+  <Reference Include="GodotSharp"><HintPath>D:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/GodotSharp.dll</HintPath></Reference>
+  <Reference Include="0Harmony"><HintPath>D:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/0Harmony.dll</HintPath></Reference>
+  <Reference Include="MonoMod.Backports"><HintPath>D:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/MonoMod.Backports.dll</HintPath></Reference>
+  <Reference Include="MonoMod.ILHelpers"><HintPath>D:/steam/steamapps/common/Slay the Spire 2/data_sts2_windows_x86_64/MonoMod.ILHelpers.dll</HintPath></Reference>
+  <Reference Include="STS2-RitsuLib"><HintPath>D:/steam/steamapps/workshop/content/2868840/3747602295/compat/0.111.0/STS2-RitsuLib.dll</HintPath></Reference>
+  <Reference Include="STS2-RitsuLib.Runtime"><HintPath>D:/steam/steamapps/workshop/content/2868840/3747602295/compat/0.111.0/STS2-RitsuLib.Runtime.dll</HintPath></Reference>
+  <Reference Include="STS2-RitsuLib.Shared"><HintPath>D:/steam/steamapps/workshop/content/2868840/3747602295/shared/STS2-RitsuLib.Shared.dll</HintPath></Reference>
+  <Reference Include="STS2-RitsuLib.Ui"><HintPath>D:/steam/steamapps/workshop/content/2868840/3747602295/shared/STS2-RitsuLib.Ui.dll</HintPath></Reference>
+  <Reference Include="STS2-RitsuLib.Settings"><HintPath>D:/steam/steamapps/workshop/content/2868840/3747602295/shared/STS2-RitsuLib.Settings.dll</HintPath></Reference>
+ </ItemGroup>
+ <ItemGroup><Compile Remove="Scripts/**/*.cs" /></ItemGroup>
+ <Target Name="CopyProbeScriptResource" BeforeTargets="Build">
+  <MakeDir Directories="$(MSBuildProjectDirectory)/Scripts/Hook" />
+  <Copy SourceFiles="../../Scripts/Hook/RunSeenSyncTicker.cs" DestinationFiles="$(MSBuildProjectDirectory)/Scripts/Hook/RunSeenSyncTicker.cs" />
+ </Target>
+</Project>

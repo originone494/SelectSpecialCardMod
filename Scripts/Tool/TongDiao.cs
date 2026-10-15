@@ -69,7 +69,8 @@ public static class TongDiao
         if (!PileType.Hand.GetPile(player).Cards.Any(filter)) return;
 
         // 「可以进行一次」：可选，取消即不同调
-        var prefs = new CardSelectorPrefs(sourceIsTuner ? StarChoicePrompt : TunerChoicePrompt, 1, 1) { Cancelable = true };
+        var prefs = new CardSelectorPrefs(sourceIsTuner ? StarChoicePrompt : TunerChoicePrompt, 1, 1)
+        { Cancelable = true, RequireManualConfirmation = true };
         CardModel? chosen = (await CardSelectCmd.FromHand(
             prefs: prefs,
             context: choiceContext,
@@ -98,7 +99,7 @@ public static class TongDiao
         // 战斗内消耗：把额外堆里那张副本移出（进「额外堆·已用」，战斗结束时按规则补齐回来），
         // 产物则按模板造一张**战斗副本**加入手牌（战斗结束消失，不会进卡组）。
         await ExtraDeckSeries.Consume(player, fromExtra);
-        var copy = player.Creature.CombatState!.CreateCard(dragon, player);
+        var copy = ExtraDeckSeries.CreateSummonedCopy(player, fromExtra);
         await CardPileCmd.Add(copy, PileType.Hand);
     }
 

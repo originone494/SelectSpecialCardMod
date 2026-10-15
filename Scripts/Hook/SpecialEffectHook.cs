@@ -9,6 +9,8 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 using STS2RitsuLib.Interactions.RightClick;
 using SelectSpecialCardMod.Scripts.Custom;
+using SelectSpecialCardMod.Scripts.Rules;
+using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Hook;
 
@@ -21,6 +23,16 @@ public interface ISpecialEffectCard
 
     // 发动特殊效果
     Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player);
+
+    async Task<ActivationResult> ExecuteSpecialEffect(PlayerChoiceContext context, Player player)
+    {
+        if (!CanActivateSpecialEffect(player)) return new(ActivationOutcome.ConditionChanged);
+        return new(await TryActivateSpecialEffect(context, player) ? ActivationOutcome.Activated : ActivationOutcome.NotActivated);
+    }
+
+    // 可取消的效果覆写此方法；只有真正发动才消耗同名次数。
+    Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player);
+
 }
 
 public static class SpecialEffectHook
@@ -28,30 +40,9 @@ public static class SpecialEffectHook
     // 右键绑定的句柄（本 mod 生命周期内常驻，无需注销）
     private static IDisposable? _binding;
 
-    // 「同名卡一回合一次」：记录每（玩家, 卡名）最近一次发动所在的回合键。
-    // 与本回合键相同即表示本回合该卡名的特殊效果已发动过，右键不再触发；
-    // 回合号变化后键自然不再相等，无需手动清理。
-    private static readonly Dictionary<(Player Player, string CardName), (CombatId? Combat, int Turn)> LastUsedTurn = [];
-
-    private static (CombatId? Combat, int Turn)? CurrentTurnKey(Player player)
-    {
-        var combat = CombatManager.Instance;
-        if (combat == null) return null;
-        return ((CombatId?)combat.CurrentCombatId, player.PlayerCombatState?.TurnNumber ?? 0);
-    }
-
+    private static string EffectKey(CardModel card) => "SpecialEffect:" + card.Id;
     private static bool HasUsedThisTurn(Player player, CardModel card)
-    {
-        var key = CurrentTurnKey(player);
-        return key != null && LastUsedTurn.TryGetValue((player, card.Title), out var used) && used == key.Value;
-    }
-
-    private static void MarkUsedThisTurn(Player player, CardModel card)
-    {
-        var key = CurrentTurnKey(player);
-        if (key == null) return;
-        LastUsedTurn[(player, card.Title)] = key.Value;
-    }
+        => PlayerEffectState.For(player).IsUnavailable(EffectKey(card), PlayerEffectState.Turn(player));
 
     // 某张牌当前是否「可以右键发动特殊效果」——与右键注册用的判据完全一致：
     // 在手牌中 + 带「特殊效果」标签 + 本回合该卡名未发动过 + 卡自己判定条件成立。
@@ -67,8 +58,21 @@ public static class SpecialEffectHook
         return card is ISpecialEffectCard effect && effect.CanActivateSpecialEffect(player);
     }
 
+    internal static async Task<ActivationResult> ExecuteSpecialEffectAsync(CardModel card, PlayerChoiceContext context, Player player)
+    {
+        if (card is not ISpecialEffectCard effect || card.Owner != player || card.Pile?.Type != PileType.Hand)
+            return new(ActivationOutcome.ConditionChanged);
+        var combat = card.CombatState;
+        if (!await SpecialEffectVfx.Play(card)) return new(ActivationOutcome.NotActivated);
+        // 演出期间退出战斗或移走卡牌时，不继续执行已失效的效果。
+        if (card.CombatState != combat || card.Owner != player || card.Pile?.Type != PileType.Hand)
+            return new(ActivationOutcome.ConditionChanged);
+        return await effect.ExecuteSpecialEffect(context, player);
+    }
+
     public static void Init()
     {
+        if (_binding != null) return;
         _binding = ModRightClickRegistry.Register<CardModel>(
             Entry.ModId,
             "special_effect",
@@ -79,13 +83,24 @@ public static class SpecialEffectHook
                               && card is ISpecialEffectCard effect && effect.CanActivateSpecialEffect(ctx.Player),
             execute: async ctx =>
             {
-                if (ctx.Model is not CardModel card || card is not ISpecialEffectCard effect) return;
+                if (ctx.Model is not CardModel card || card is not ISpecialEffectCard) return;
                 if (ctx.PlayerChoiceContext is null) return;
                 // 执行阶段再判一次：入队与真正执行之间手牌可能已变化/已被同名卡用掉
-                if (!effect.CanActivateSpecialEffect(ctx.Player)) return;
-                if (HasUsedThisTurn(ctx.Player, card)) return;
-                await effect.ActivateSpecialEffect(ctx.PlayerChoiceContext, ctx.Player);
-                MarkUsedThisTurn(ctx.Player, card);
+                if (card.Owner != ctx.Player || !CanActivate(card)) return;
+                using var reservation = PlayerEffectState.For(ctx.Player).Reserve(EffectKey(card), PlayerEffectState.Turn(ctx.Player));
+                if (reservation == null) return;
+                using var payment = EffectActivation.Begin(reservation.Commit);
+                try
+                {
+                    if ((await ExecuteSpecialEffectAsync(card, ctx.PlayerChoiceContext, ctx.Player)).Activated) reservation.Commit();
+                }
+                catch
+                {
+                    // A failed command may already have paid costs. Never enable an uncertain retry.
+                    reservation.Commit();
+                    throw;
+                }
+                finally { SelectSpecialCardMod.Scripts.Tool.UiConditions.Invalidate(); }
             });
     }
 }

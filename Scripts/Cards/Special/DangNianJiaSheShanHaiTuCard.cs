@@ -8,7 +8,6 @@ using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Hook;
-using SelectSpecialCardMod.Scripts.Intent;
 
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
@@ -32,15 +31,10 @@ public class DangNianJiaSheShanHaiTuCard : SelectSpecialBaseCard
 
         if (selected == null) return;
 
-        // 「这场游戏中见过的卡」= mod 自己记录的「本局渲染过的卡」（RunSeenCards），
-        // 并入原生 DiscoveredCards 兜底；排除怪物的意图卡（IMonsterDisplayCard）——
-        // 那些是展示用卡，不该被变化获得。
-        List<CardModel> seenCards = RunSeenCards.Ids
-            .Concat(Owner.DiscoveredCards)
-            .Distinct()
-            .Select(id => ModelDb.GetByIdOrNull<CardModel>(id))
-            .Where(card => card != null && card is not IMonsterDisplayCard)
-            .Select(card => CombatState!.CreateCard(card!, Owner))
+        // 本人视野，含商店、奖励与特殊牌；同步快照后才创建相同顺序的副本。
+        var candidates = await RunSeenCards.SynchronizeCandidates(choiceContext, Owner);
+        List<CardModel> seenCards = candidates
+            .Select(card => CombatState!.CreateCard(card, Owner))
             .ToList();
 
         if (seenCards.Count == 0) return;

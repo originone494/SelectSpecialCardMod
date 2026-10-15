@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using STS2RitsuLib.Combat.HandSize;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -78,7 +79,7 @@ public class ZhuLeiShuiXianCard : SelectSpecialBaseCard, ISongMuCard, IDengChang
         await CreatureCmd.Damage(choiceContext, cardPlay.Target, DynamicVars.Damage.BaseValue, ValueProp.Move, Owner.Creature, this, cardPlay);
     }
 
-    // 登场：同名卡一回合一次。「检索」1张除「珠泪融合怪兽」以外的「珠泪」卡，选择加入手牌或丢弃
+    // 登场：同名卡一场战斗一次。「检索」1张除「珠泪融合怪兽」以外的「珠泪」卡，选择加入手牌或丢弃
     public async Task DengChangSpecial(PlayerChoiceContext ctx, Player player)
     {
         // 「检索」本身是 0~1 的选择（RetrieverCard 内部用 min 0）：玩家可以先决定不检索，
@@ -106,7 +107,8 @@ public class ZhuLeiShuiXianCard : SelectSpecialBaseCard, ISongMuCard, IDengChang
     public bool CanActivateSpecialEffect(Player player)
     {
         var hand = PileType.Hand.GetPile(player);
-        if (hand == null || !hand.Cards.Any(c => c.Type == CardType.Attack)) return false;
+        if (hand == null || hand.Cards.Count >= MaxHandSizeCalculator.Calculate(player)
+            || !hand.Cards.Any(c => c.Type == CardType.Attack)) return false;
         var discard = PileType.Discard.GetPile(player);
         return discard != null && discard.Cards.Any(ZhuLeiFilter.IsMonster);
     }
@@ -116,6 +118,12 @@ public class ZhuLeiShuiXianCard : SelectSpecialBaseCard, ISongMuCard, IDengChang
     //           之后，将选择的卡送入弃牌堆
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
+        await TryActivateSpecialEffect(choiceContext, player);
+    }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    {
+        if (!CanActivateSpecialEffect(player)) return false;
         // ① 从手牌选择1张攻击卡（可以选自身）；先记下，最后才送入弃牌堆
         var selected = (await CardSelectCmd.FromHandForDiscard(
             prefs: CardPrefs(this, SpecialCostPrompt, 1, 1),
@@ -123,27 +131,31 @@ public class ZhuLeiShuiXianCard : SelectSpecialBaseCard, ISongMuCard, IDengChang
             player: player,
             filter: c => c.Type == CardType.Attack,
             source: this)).ToList();
-        if (selected.Count == 0) return;
+        if (selected.Count == 0) return false;
         CardModel cost = selected[0];
 
         // ② 从弃牌堆将1张「珠泪怪兽」加入手牌
         var options = PileType.Discard.GetPile(player).Cards.Where(ZhuLeiFilter.IsMonster).ToList();
-        if (options.Count == 0) return;
+        if (options.Count == 0) return false;
 
         var picked = (await CardSelectCmd.FromSimpleGrid(
             choiceContext,
             options,
             player,
             CardPrefs(this, SpecialRetrievePrompt, 1, 1))).FirstOrDefault();
-        if (picked == null) return;
+        if (picked == null || picked.Pile?.Type != PileType.Discard || cost.Pile?.Type != PileType.Hand
+            || PileType.Hand.GetPile(player).Cards.Count >= MaxHandSizeCalculator.Calculate(player)) return false;
 
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
         await CardPileCmd.Add(picked, PileType.Hand);
+        if (picked.Pile?.Type != PileType.Hand) return false;
 
         // ③ 那张卡在这个回合可以免费打出（与死者苏生同款机制）
         picked.EnergyCost.SetThisTurn(0);
 
         // ④ 之后，将选择的卡送入弃牌堆（走真正的弃牌语义，会触发被弃卡的送墓）
         await CardCmd.Discard(choiceContext, cost);
+        return true;
     }
 
     // 送墓：从抽牌堆顶将5张卡送入弃牌堆

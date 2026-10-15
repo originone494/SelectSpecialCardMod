@@ -54,7 +54,7 @@ public class HeLuSiRongGuangCard : SelectSpecialBaseCard, ISpecialEffectCard
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        HorusFreePlay.Consume(this);
+        HorusFreePlay.Consume(this, cardPlay);
         if (cardPlay.Target == null) return;
 
         await DamageCmd.Attack(DynamicVars.Damage.IntValue)
@@ -71,6 +71,9 @@ public class HeLuSiRongGuangCard : SelectSpecialBaseCard, ISpecialEffectCard
     }
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
         // 丢弃1张手牌（玩家选择，必须选1张；排除自身）
         var selected = (await CardSelectCmd.FromHandForDiscard(
@@ -79,6 +82,8 @@ public class HeLuSiRongGuangCard : SelectSpecialBaseCard, ISpecialEffectCard
             player: player,
             filter: c => c != this,
             source: this)).ToList();
+        if (selected.Count != 1 || selected[0].Owner != player || selected[0].Pile?.Type != PileType.Hand) return false;
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
         foreach (var card in selected)
         {
             await CardCmd.Discard(choiceContext, card);
@@ -91,5 +96,6 @@ public class HeLuSiRongGuangCard : SelectSpecialBaseCard, ISpecialEffectCard
         CardModel wangZhiGuan = player.Creature.CombatState!.CreateCard<WangZhiGuanCard>(player);
         var addResult = await CardPileCmd.AddGeneratedCardToCombat(wangZhiGuan, PileType.Hand, player);
         CardCmd.PreviewCardPileAdd(addResult, 2f);
+        return true;
     }
 }

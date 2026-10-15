@@ -19,7 +19,7 @@ namespace SelectSpecialCardMod.Scripts.Tool;
 
 // 击败每层的第一个精英时：从 Special 卡池随机抽 3 张，以原版卡牌奖励界面 3 选 1 加入卡组。
 // 移植自 yuno mod 的 EliteSpecialReward。
-// 前提条件：必须持有「死亡讯息-红」遗物（本 mod 的特殊卡入场券，开局发放，见 DeadEndRedGrant）。
+// 前提条件：必须持有「决斗盘」遗物（本 mod 的特殊卡入场券，开局发放，见 DuelDskGrant）。
 // 没有这枚遗物时，击败精英不会出现特殊卡奖励。
 public static class EliteSpecialReward
 {
@@ -65,10 +65,10 @@ public static class EliteSpecialReward
             return;
         }
 
-        // 前提：持有「死亡讯息-红」。没有这枚遗物就拿不到特殊卡（本 mod 唯一的特殊卡获取途径）。
-        if (me.GetRelic<DeadEndRedRelic>() == null)
+        // 前提：持有「决斗盘」。旧存档遗物由 RunSetup 提前迁移。
+        if (me.GetRelic<DuelDskRelic>() == null)
         {
-            Log.Info($"[SelectSpecialCardMod] EliteSpecialReward: 玩家 {me.NetId} 没有「死亡讯息-红」，跳过特殊卡奖励。");
+            Log.Info($"[SelectSpecialCardMod] EliteSpecialReward: 玩家 {me.NetId} 没有「决斗盘」，跳过特殊卡奖励。");
             return;
         }
 

@@ -19,6 +19,8 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 // 异解·多罪海：造成伤害并大量灌注除外堆，除外堆数量达到阈值时逐档解锁额外效果
 public class YiJieDuoZuiHaiCard : SelectSpecialBaseCard
 {
+    public override bool GainsBlock => true;
+
     private const int _randomCards = 8;
     private const int _freeCostThreshold = 10;   // 10张：免费打出
     private const int _randomDamageThreshold = 20;   // 20张：随机敌人受等同牌数的伤害

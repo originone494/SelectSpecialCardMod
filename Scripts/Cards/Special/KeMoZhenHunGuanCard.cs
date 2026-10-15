@@ -71,7 +71,7 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
     // 召唤条件：手牌的「光恶魔」怪兽至少 1 张；「对这张卡的召唤一回合只能进行一次」按同名卡记
     private static LocString SummonCostPrompt { get; } = new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_ZHEN_HUN_GUAN_SUMMON_COST");
 
-    private string SummonOnceKey => PerTurnOnce.Key("ExtraDeckSummon", Id.Entry);
+    private string SummonOnceKey => PerTurnOnce.Key("ExtraDeckSummon", Id.ToString());
 
     public bool CanSummonFromExtraDeck(Player player)
         => !PerTurnOnce.IsUsed(player, SummonOnceKey)
@@ -88,10 +88,11 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
             context: ctx,
             player: player,
             filter: c => c.Tags.Contains(SelectTags.GuangEMo),
-            source: this)).ToList();
+            // 手动召唤没有普通打出生命周期，确认后立即恢复手牌节点。
+            source: null!)).ToList();
         if (chosen.Count < 1) return false;
 
-        await SelectToolCmd.ExhaustCards(ctx, chosen);
+        if (!await MaterialPayment.Exhaust(ctx, player, chosen, 1, PileType.Hand)) return false;
 
         // 对这张卡的召唤一回合只能进行一次（同名卡共享一次；换回合自动失效）
         PerTurnOnce.Mark(player, SummonOnceKey);
@@ -102,8 +103,13 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
     public bool CanActivateSpecialEffect(Player player) => true;
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
-        await CardCmd.Exhaust(choiceContext, this);
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
+        var paid = await CardCmd.Exhaust(choiceContext, this);
+        if (paid?.success != true) return false;
 
         var retrieved = await SelectToolCmd.RetrieverCard(
             choiceContext,
@@ -115,6 +121,7 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
         {
             card.EnergyCost.SetThisTurn(0);
         }
+        return true;
     }
 
     // 时机：只能从消耗堆发动。把手牌 1 张「光恶魔（连接怪兽除外）」装上这件装备（伤害 +6）

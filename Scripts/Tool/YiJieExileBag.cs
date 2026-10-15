@@ -22,7 +22,8 @@ public static class YiJieExileBag
     // 异解密度 ≈ 1 / (1 + FillerPerYiJieCard) = 10%
     private const int FillerPerYiJieCard = 9;
 
-    private static readonly Dictionary<Player, (CombatId? Combat, Queue<CardModel> Bag)> Bags = new();
+    private sealed record BagRecord(CombatId? Combat, Queue<CardModel> Bag);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Player, BagRecord> Bags = new();
 
     // 取当前玩家当前战斗的出货队列（不存在/换战斗则重洗）
     public static Queue<CardModel> GetBag(Player player)
@@ -32,7 +33,8 @@ public static class YiJieExileBag
             return entry.Bag;
 
         var bag = BuildBag(player);
-        Bags[player] = (combatId, bag);
+        Bags.Remove(player);
+        Bags.Add(player, new BagRecord(combatId, bag));
         return bag;
     }
 
@@ -74,8 +76,9 @@ public static class YiJieExileBag
         {
             if (bag.Count == 0)
             {
-                Bags[player] = (CombatManager.Instance.CurrentCombatId, BuildBag(player));
-                bag = Bags[player].Bag;
+                bag = BuildBag(player);
+                Bags.Remove(player);
+                Bags.Add(player, new BagRecord(CombatManager.Instance.CurrentCombatId, bag));
                 if (bag.Count == 0) break;
             }
             outDefs.Add(bag.Dequeue());

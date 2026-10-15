@@ -55,5 +55,8 @@
   "SELECT_SPECIAL_CARD_MOD_POWER_NIAO_NIAO_LIAN_GE_JI_DE_YI_SHI_HUAI_POWER.selectionScreenPrompt": "选择1张费用不超过1的卡送入[gold]弃牌堆[/gold]。",
   "SELECT_SPECIAL_CARD_MOD_POWER_ZENG_ZHI_POWER.title": "增殖",
   "SELECT_SPECIAL_CARD_MOD_POWER_ZENG_ZHI_POWER.description": "复制品无攻击意图；其他敌人死亡时，复制品死亡。",
-  "SELECT_SPECIAL_CARD_MOD_POWER_ZENG_ZHI_POWER.smartDescription": "复制品无攻击意图；其他敌人死亡时，复制品死亡。"
+  "SELECT_SPECIAL_CARD_MOD_POWER_ZENG_ZHI_POWER.smartDescription": "复制品无攻击意图；其他敌人死亡时，复制品死亡。",
+  "SELECT_SPECIAL_CARD_MOD_POWER_YI_XIANG_MING_ZHI_SHI_WU_POWER.title": "异响鸣指示物",
+  "SELECT_SPECIAL_CARD_MOD_POWER_YI_XIANG_MING_ZHI_SHI_WU_POWER.description": "",
+  "SELECT_SPECIAL_CARD_MOD_POWER_YI_XIANG_MING_ZHI_SHI_WU_POWER.smartDescription": ""
 }

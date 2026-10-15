@@ -153,13 +153,22 @@ internal static class MonsterDeck
     // 强夺：让怪物空过一手。被抢走的那张已由 RemoveFromHand 从牌堆移除；
     // 这里不推进状态机——空过的那一回合游戏仍会调用 OnMovePerformed(NextMove)，
     // 于是下一回合 RollMove 自然越过被抢走的招式（本阶段内不再出现，换阶段重建时恢复）。
+    internal static IReadOnlyList<CardModel> Stealable(Creature creature)
+        => HandOf(creature).Where(c => c is not MonsterDisplayCard { IsPlaceholder: true }).ToList();
+    internal static bool TryRemoveIntent(Creature creature, CardModel card)
+    {
+        if (!Stealable(creature).Contains(card) || !Decks.TryGetValue(creature, out var deck)) return false;
+        if (!deck.Queue.Remove(card)) return false;
+        RegisterSteal(creature);
+        return true;
+    }
     internal static void RegisterSteal(Creature creature)
         => PendingSkip[creature] = (PendingSkip.TryGetValue(creature, out int s) ? s : 0) + 1;
 
     // 塞废牌：插到「已有未打出的废牌」之后，保证多张废牌按塞入顺序依次生效。
     internal static void AddJunk(Creature enemy, IntentCardTheft.JunkKind kind)
     {
-        var player = IntentCardHook.LocalPlayer;
+        var player = enemy.CombatState?.Players.OrderBy(p => p.NetId).FirstOrDefault();
         if (player == null) return;
         var deck = GetOrCreate(enemy);
         if (!deck.Built) BuildPool(enemy, deck);
@@ -189,7 +198,7 @@ internal static class MonsterDeck
 
     private static void BuildPool(Creature enemy, Deck deck)
     {
-        var player = IntentCardHook.LocalPlayer;
+        var player = enemy.CombatState?.Players.OrderBy(p => p.NetId).FirstOrDefault();
         if (player == null) return;   // 玩家上下文未就绪：下次再试（Built 保持 false，不接管）
         deck.Queue.Clear();
         deck.Queue.AddRange(IntentCardMapper.BuildMonsterPool(enemy, player));
@@ -213,7 +222,7 @@ internal static class MonsterDeck
     {
         // 有强夺空过待处理：暂不对账（否则会把被抢走的招式按 NextMove 排回来）
         if (PendingSkip.TryGetValue(enemy, out int pending) && pending > 0) return;
-        var player = IntentCardHook.LocalPlayer;
+        var player = enemy.CombatState?.Players.OrderBy(p => p.NetId).FirstOrDefault();
         if (player == null || deck.Queue.Count == 0) return;
         var next = enemy.Monster?.NextMove;
         if (next == null) return;

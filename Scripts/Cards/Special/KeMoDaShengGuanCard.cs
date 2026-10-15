@@ -84,7 +84,7 @@ public class KeMoDaShengGuanCard : SelectSpecialBaseCard, IExtraDeckSummonCard, 
             SummonCostPrompt, this);
         if (chosen == null) return false;
 
-        await SelectToolCmd.ExhaustCards(ctx, chosen);
+        if (!await MaterialPayment.Exhaust(ctx, player, chosen, 2, PileType.Hand)) return false;
         return true;
     }
 
@@ -97,9 +97,12 @@ public class KeMoDaShengGuanCard : SelectSpecialBaseCard, IExtraDeckSummonCard, 
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
-        await KeMoFusion.TryFusion(choiceContext, player, this, PickMonsterPrompt, PickMaterialPrompt,
-            KeMoFusion.PilePool(PileType.Exhaust), KeMoFusionDestination.Deck);
+        await TryActivateSpecialEffect(choiceContext, player);
     }
+
+    public Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+        => KeMoFusion.TryFusion(choiceContext, player, this, PickMonsterPrompt, PickMaterialPrompt,
+            KeMoFusion.PilePool(PileType.Exhaust), KeMoFusionDestination.Deck);
 
     // 时机：只能从消耗堆发动。把手牌 1 张「光恶魔（连接怪兽除外）」装上这件装备（伤害 +12）
     public IEnumerable<PileType> ShiJiPiles => [PileType.Exhaust];

@@ -59,7 +59,7 @@ public static class IntentEffectFlyPatch
             return false;
         }
         // 观测：这一招真的发出了这条能力 —— 直接读命令参数记下来（不受反击/触发等影响）
-        MonsterEffectRecord.NotePower(power.GetType().Name, amount, target);
+        MonsterEffectRecord.NotePower(power.Id.ToString(), amount, target, applier);
         IntentCardFlySync.NotifyHit(applier);
         return true;
     }
@@ -171,7 +171,7 @@ public static class IntentEffectFlyPatch
 
     // 塞牌拦截标记：同一次行动作用域内，塞牌被抢/顶替后，后续入堆一律跳过。
     // 由 MonsterActorScopePatch 在每次行动开始时复位。
-    internal static bool SkipSealAdds;
+    internal static bool SkipSealAdds { get => IntentCardTheft.SkipSealAdds; set => IntentCardTheft.SkipSealAdds = value; }
 
     // 处决的死亡结算（处决怪如 GasBomb/WaterfallGiant：攻击玩家后自爆 Kill 自己；
     // 若有处决玩家的场景则目标为玩家）：DeathBlow 卡被抢后攻击部分由拆分拦截取消，
@@ -217,27 +217,20 @@ public static class IntentEffectFlyPatch
 public static class MonsterActorScopePatch
 {
     [HarmonyPrefix]
-    static void Enter(MonsterModel __instance)
-    {
-        IntentEffectFlyPatch.SkipSealAdds = false;   // 塞牌拦截标记按行动复位
-        IntentCardTheft.BeginActorScope(__instance.Creature);
-    }
-
+    static void Enter(MonsterModel __instance, out SelectSpecialCardMod.Scripts.Rules.AsyncScope<IntentCardTheft.ActorState>.Frame __state)
+        => __state = IntentCardTheft.BeginActorScope(__instance.Creature);
     [HarmonyPostfix]
-    static void Wrap(ref Task __result)
+    static void Wrap(ref Task __result, SelectSpecialCardMod.Scripts.Rules.AsyncScope<IntentCardTheft.ActorState>.Frame __state)
     {
-        __result = Wrapped(__result);
-
-        static async Task Wrapped(Task inner)
-        {
-            try
-            {
-                await inner;
-            }
-            finally
-            {
-                IntentCardTheft.EndActorScope();
-            }
-        }
+        IntentCardTheft.RestoreActorScope(__state);
+        __result = Complete(__result, __state);
+    }
+    static async Task Complete(Task task, SelectSpecialCardMod.Scripts.Rules.AsyncScope<IntentCardTheft.ActorState>.Frame frame)
+    { try { await task; } finally { IntentCardTheft.CompleteActorScope(frame); } }
+    static System.Exception? Finalizer(System.Exception? __exception,
+        SelectSpecialCardMod.Scripts.Rules.AsyncScope<IntentCardTheft.ActorState>.Frame? __state)
+    {
+        if (__exception != null && __state != null) IntentCardTheft.CompleteActorScope(__state);
+        return __exception;
     }
 }

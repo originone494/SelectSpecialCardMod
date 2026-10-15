@@ -86,7 +86,7 @@ internal static class MonsterManualTable
     // 转成通用的效果结构（人工表是整条覆盖，不做逐字段合并）
     internal static MonsterMoveEffects ToEffects(Entry entry)
     {
-        var fx = new MonsterMoveEffects { Block = entry.Block, Heal = entry.Heal, SealJunk = entry.Seal };
+        var fx = new MonsterMoveEffects { Block = entry.Block, Heal = entry.Heal, SealJunk = entry.Seal, BlockKnown = true, HealKnown = true, SelfKnown = true, PlayerKnown = true, SummonsKnown = true };
         fx.SelfPowers.AddRange(entry.SelfPowers);
         fx.PlayerPowers.AddRange(entry.PlayerPowers);
         foreach (var kind in entry.Summoned) fx.SummonedMonsters.Add((kind, 0));

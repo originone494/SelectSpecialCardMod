@@ -52,8 +52,7 @@ public class QiangDuoCard : SelectSpecialBaseCard
 
         // ① 该怪物头顶的意图卡列表（overlay 不存在 = 意图未卡牌化，效果空转）
         var overlay = IntentCardHook.FindOverlay(target);
-        if (overlay == null) return;
-        var candidates = overlay.StealableModels;
+        var candidates = MonsterDeck.Stealable(target).ToList();
         if (candidates.Count == 0) return;
 
         // ② 弹选牌界面选 1 张
@@ -65,7 +64,8 @@ public class QiangDuoCard : SelectSpecialBaseCard
         if (picked == null) return;
 
         // ③ 抢：头顶移除（飞向手牌区演出）+ 记录被抢份数（怪物行动时对应动作不发生）
-        if (!overlay.StealCard(picked)) return;
+        if (!MonsterDeck.TryRemoveIntent(target, picked)) return;
+        overlay?.StealCard(picked);
         // 路线 A：怪物出牌由 MonsterDeck 驱动，抢走即从手牌移除、这一手不会打出它，
         // 无需旧的「计数抵扣」机制（原来的 Count 消费链只服务于原版意图执行）
         if (!MonsterDeck.IsTracked(target))
@@ -73,6 +73,7 @@ public class QiangDuoCard : SelectSpecialBaseCard
 
         // ④ 复制一张进手牌（双面卡：玩家打出反向生效），打出后消耗
         var copy = IntentCardMapper.CreateCopy(player, picked);
+        if (copy is MonsterMoveCard moveCopy) await MonsterEffectSnapshot.Capture(choiceContext, player, moveCopy);
         // 抢来的意图卡一律带「消耗」关键字（卡面可见，打出后消耗）
         copy.AddKeyword(CardKeyword.Exhaust);
         await CardPileCmd.Add(copy, PileType.Hand);

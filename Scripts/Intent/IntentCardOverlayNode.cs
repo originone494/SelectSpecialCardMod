@@ -99,7 +99,7 @@ public partial class IntentCardOverlayNode : Control
         var enemy = _creature.Entity;
         bool inCombat = CombatManager.Instance?.CurrentCombatId != null;
         // 路线 A：敌方怪物一律用头顶手牌作为唯一意图展示——原版意图图标隐藏（避免两套预告不一致）
-        bool routeA = inCombat && enemy != null && !enemy.IsPlayer && enemy.Side == CombatSide.Enemy;
+        bool routeA = (!SelectSpecialCardMod.Scripts.Tool.FeatureStatus.Checked || SelectSpecialCardMod.Scripts.Tool.FeatureStatus.MonsterDeck) && inCombat && enemy != null && !enemy.IsPlayer && enemy.Side == CombatSide.Enemy;
         if (routeA && intentContainer != null) intentContainer.Visible = false;
 
         // 怪物死亡：立即清卡，不等意图清空（游戏在死亡动画播完后才清 NextMove，
@@ -107,8 +107,7 @@ public partial class IntentCardOverlayNode : Control
         if (inCombat && enemy != null && enemy.IsDead)
         {
             if (_cards.Count > 0) ClearCards();
-            IntentCardTheft.ClearAll(enemy);
-            MonsterDeck.Clear(enemy);
+
             _signature = "";
             return;
         }
@@ -627,7 +626,7 @@ public partial class IntentCardOverlayNode : Control
 
     // ── 临时诊断：把头顶卡的实际几何写进 user://SelectSpecialCardMod/layout_debug.txt ──
     // 排查完把 LayoutDebug 改成 false 即可（每秒最多写一次，不影响游戏）。
-    private const bool LayoutDebug = true;
+    private static readonly bool LayoutDebug = System.Environment.GetEnvironmentVariable("SCM_LAYOUT_DEBUG") == "1";
     private ulong _nextDebugMsec;
 
     private void DumpLayout()
@@ -794,14 +793,6 @@ public partial class IntentCardOverlayNode : Control
         if (idx < 0) return false;
         var (wrapper, card) = _cards[idx];
         _cards.RemoveAt(idx);
-        // 路线 A：同步从怪物手牌移除——这一手不会打出它（真抢）
-        var enemy = _creature?.Entity;
-        if (enemy != null)
-        {
-            MonsterDeck.RemoveFromHand(enemy, model);
-            // 让怪物这一手空过（被抢走的招式本阶段不再出现，换阶段重建时恢复）
-            MonsterDeck.RegisterSteal(enemy);
-        }
         FlyToHand(card, wrapper);
         return true;
     }
@@ -814,14 +805,6 @@ public partial class IntentCardOverlayNode : Control
         if (idx < 0) return false;
         var (wrapper, card) = _cards[idx];
         _cards.RemoveAt(idx);
-
-        // 路线 A：同步从怪物手牌移除——这一手不会打出它（与强夺同一套）
-        var enemy = _creature?.Entity;
-        if (enemy != null)
-        {
-            MonsterDeck.RemoveFromHand(enemy, model);
-            MonsterDeck.RegisterSteal(enemy);
-        }
 
         PlayExhaustVfx(card, wrapper);
         return true;

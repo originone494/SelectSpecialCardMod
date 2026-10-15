@@ -58,7 +58,7 @@ public class HeLuSiZhuFuCard : SelectSpecialBaseCard
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        HorusFreePlay.Consume(this);
+        HorusFreePlay.Consume(this, cardPlay);
         ArgumentNullException.ThrowIfNull(cardPlay.Target, "cardPlay.Target");
 
         // 造成伤害：总伤害在结算时按手牌中除自身以外的「荷鲁斯怪兽」数计算

@@ -25,51 +25,29 @@ public static class PetAlly
     // 宠物 → 每回合帮打伤害。战斗开始（CombatBegan）清空——宠物随战斗创建/销毁。
     private static readonly System.Collections.Generic.Dictionary<Creature, int> AttackPower = new();
 
-    private static readonly Random Rng = new();
-
     public static void Init()
     {
         CombatManager.Instance.CombatBegan += _ => AttackPower.Clear();
-        RitsuLibFramework.SubscribeLifecycle<PlayerTurnStartedEvent>(evt =>
-        {
-            // 本地玩家的回合才开始帮打（多人下避免每个客户端重复执行）
-            if (evt.Player != IntentCardHook.LocalPlayer) return;
-            _ = RunPetAttacksSafe();
-        });
+        CombatManager.Instance.CombatEnded += _ => AttackPower.Clear();
     }
-
     public static void Register(Creature pet, int damage) => AttackPower[pet] = damage;
-
-    // 丢弃任务（fire-and-forget）：伤害命令走游戏命令队列串行执行；
-    // 异常吞掉记日志——事件回调里不允许抛出。
-    private static async Task RunPetAttacksSafe()
+    public static async Task RunPetAttacks(PlayerChoiceContext context, MegaCrit.Sts2.Core.Entities.Players.Player player)
     {
-        try
-        {
-            await RunPetAttacks();
-        }
-        catch (Exception e)
-        {
-            Entry.Logger.Error($"[PetAlly] 宠物帮打失败: {e}");
-        }
-    }
-
-    private static async Task RunPetAttacks()
-    {
-        var combat = IntentCardHook.LocalPlayer?.Creature?.CombatState;
+        var combat = player.Creature.CombatState;
         if (combat == null) return;
-        foreach (var pet in AttackPower.Keys.ToList())
+        // Combat creature order is synchronized; never depend on Dictionary enumeration order.
+        foreach (var pet in combat.Creatures.Where(p => p.PetOwner == player && AttackPower.ContainsKey(p)).ToList())
         {
+            if (CombatManager.Instance.IsOverOrEnding || !ReferenceEquals(player.Creature.CombatState, combat)) break;
             int damage = AttackPower[pet];
-            if (damage <= 0) continue; // 快照为 0（召唤时无攻击意图）：纯占位不帮打
-            if (pet.IsDead || !combat.Creatures.Contains(pet)) continue;
-            var targets = combat.HittableEnemies;
-            if (targets.Count == 0) continue;
-            var target = targets[Rng.Next(targets.Count)];
-
+            if (damage <= 0 || pet.IsDead || !combat.Creatures.Contains(pet)) continue;
+            var targets = combat.HittableEnemies.ToList();
+            if (targets.Count == 0) break;
+            var target = RitsuLibFramework.GetModRunRng(player, Entry.ModId, "pet_targets").NextItem(targets)!;
             await CreatureCmd.TriggerAnim(pet, "Attack", 0.3f);
-            await CreatureCmd.Damage(new BlockingPlayerChoiceContext(), target, damage, ValueProp.Move,
-                pet, null, null);
+            if (CombatManager.Instance.IsOverOrEnding || !ReferenceEquals(player.Creature.CombatState, combat)) break;
+            if (!target.IsAlive || pet.IsDead) continue;
+            await CreatureCmd.Damage(context, target, damage, ValueProp.Move, pet, null, null);
         }
     }
 }

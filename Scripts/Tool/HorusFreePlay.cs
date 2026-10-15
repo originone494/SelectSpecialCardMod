@@ -1,4 +1,5 @@
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Entities.Cards;
 using SelectSpecialCardMod.Scripts.Power;
 
 namespace SelectSpecialCardMod.Scripts.Tool;
@@ -12,7 +13,7 @@ public static class HorusFreePlay
 {
     private const string Scope = "horus_free";
 
-    private static string KeyOf(CardModel card) => PerTurnOnce.Key(Scope, card.Id.Entry);
+    private static string KeyOf(CardModel card) => PerTurnOnce.Key(Scope, card.Id.ToString());
 
     // 现在能不能免费打出（有「王之棺」，且这个卡名本回合还没免费打出过）
     public static bool IsAvailable(CardModel card)
@@ -24,8 +25,9 @@ public static class HorusFreePlay
     }
 
     // 这张卡真正打出去时记账（有「王之棺」才计；同名卡再打也不受影响，重复记账是幂等的）
-    public static void Consume(CardModel card)
+    public static void Consume(CardModel card, CardPlay cardPlay)
     {
+        if (cardPlay.IsAutoPlay) return;
         var owner = card.Owner;
         if (owner == null) return;
         if (!owner.Creature.HasPower<WangZhiGuanPower>()) return;

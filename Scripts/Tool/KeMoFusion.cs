@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
@@ -68,15 +69,16 @@ public static class KeMoFusion
     /// poolProvider = 素材池怎么取（大圣棺＝消耗堆，咏圣＝手牌，怜歌＝手牌攻击卡＋作为装备的刻魔怪兽）；
     /// destination = 素材用完之后去哪（Deck＝返回抽牌堆·额外堆，Exhaust＝消耗掉）。
     /// </summary>
-    public static async Task TryFusion(
+    public static async Task<bool> TryFusion(
         PlayerChoiceContext ctx, Player player, CardModel source,
         LocString pickMonsterPrompt, LocString pickMaterialPrompt,
-        Func<Player, List<CardModel>> poolProvider, KeMoFusionDestination destination)
+        Func<Player, List<CardModel>> poolProvider, KeMoFusionDestination destination,
+        Func<Task<bool>>? payActivationCost = null)
     {
-        if (player.Creature.CombatState == null) return;
+        if (player.Creature.CombatState == null) return false;
 
         var candidates = Candidates(player, poolProvider);
-        if (candidates.Count == 0) return;
+        if (candidates.Count == 0) return false;
 
         // ① 选融合怪兽（必须选，不能跳过）
         // RequireManualConfirmation：候选只有 1 张时游戏会"自动帮玩家选"，这里必须关掉
@@ -85,7 +87,7 @@ public static class KeMoFusion
             candidates,
             player,
             Prefs(source, pickMonsterPrompt, 1, 1, confirm: true))).FirstOrDefault();
-        if (chosenMonster is not IKeMoFusionMonster fusion) return;
+        if (chosenMonster is not IKeMoFusionMonster fusion) return false;
 
         // ② 逐张选素材
         var mats = fusion.FusionMaterials;
@@ -118,7 +120,7 @@ public static class KeMoFusion
                     }
                 }
             }
-            if (allowed.Count == 0) return;
+            if (allowed.Count == 0) return false;
 
             // 可以取消（0~1 + 手动确认）：取消 → 整次效果作废
             var picked = (await CardSelectCmd.FromSimpleGrid(
@@ -126,35 +128,54 @@ public static class KeMoFusion
                 allowed,
                 player,
                 Prefs(source, pickMaterialPrompt, 0, 1, confirm: true))).FirstOrDefault();
-            if (picked == null) return;
+            if (picked == null) return false;
 
             remaining[slotFor[picked]]--;
             chosen.Add(picked);
         }
 
-        // ③ 收尾：素材按调用方定的去向处理
+        // ③ 选择全部完成后才支付；取消不会消耗来源、素材或发动次数。
+        var template = ModelDb.AllCards.FirstOrDefault(c => c.GetType() == chosenMonster.GetType());
+        var currentPool = poolProvider(player);
+        if (template == null || chosenMonster.Pile?.Type != Entry.ExtraPile
+            || chosen.Any(c => c.Owner != player || !currentPool.Contains(c) || c.HasBeenRemovedFromState))
+            return false;
+        if (payActivationCost != null && !await payActivationCost()) return false;
+
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
+        // 必须在任何宿主离手前统一卸下已选装备，避免它们被宿主提前消耗。
+        if (destination == KeMoFusionDestination.Exhaust)
+            foreach (var mat in chosen) KeMoEquip.DetachMaterialEquipment(mat);
+
         foreach (var mat in chosen)
         {
+            if (CombatManager.Instance.IsOverOrEnding) return false;
             if (destination == KeMoFusionDestination.Exhaust)
             {
                 // 消耗素材：如果它正作为装备挂在别人身上，先卸掉那个组件
-                await KeMoEquip.ExhaustMaterial(ctx, mat);
+                if (!await KeMoEquip.ExhaustMaterial(ctx, mat)) return false;
                 continue;
             }
             if (mat.Tags.Contains(SelectTags.ExtraMonster))
-                await ExtraDeckSeries.ReturnExtraMonster(player, mat);   // 额外怪兽：持久卡还给额外堆，副本退场
+            {
+                if (!await ExtraDeckSeries.ReturnExtraMonster(player, mat)) return false;
+            }
             else
+            {
                 await SelectToolCmd.ReturnCardToPile(mat, PileType.Draw);
+                if (mat.Pile?.Type != PileType.Draw) return false;
+            }
         }
 
         // 额外堆那只融合怪兽移出 → 战斗副本加入手牌（与珠泪融合同款）
+        var combatState = player.Creature.CombatState;
+        if (combatState == null || CombatManager.Instance.IsOverOrEnding
+            || chosenMonster.Pile?.Type != Entry.ExtraPile) return false;
         await ExtraDeckSeries.Consume(player, chosenMonster);
-        var template = ModelDb.AllCards.FirstOrDefault(c => c.GetType() == chosenMonster.GetType());
-        if (template != null)
-        {
-            var copy = player.Creature.CombatState.CreateCard(template, player);
-            await CardPileCmd.AddGeneratedCardToCombat(copy, PileType.Hand, player);
-        }
+        if (chosenMonster.Pile?.Type != Entry.ExtraUsedPile) return false;
+        var copy = ExtraDeckSeries.CreateSummonedCopy(player, chosenMonster);
+        var result = await CardPileCmd.AddGeneratedCardToCombat(copy, PileType.Hand, player);
+        return result.success;
     }
 
     // 把「素材需求」摊平成一个个槽位（每个槽位一个筛选条件）

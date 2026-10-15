@@ -68,20 +68,26 @@ public class ZhuLeiJuSheCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffec
 
     // 特殊效果：消耗弃牌堆的1张卡，然后这张卡在这个回合可以免费打出
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
         var discardPile = PileType.Discard.GetPile(player);
-        if (discardPile.Cards.Count == 0) return;
+        if (discardPile.Cards.Count == 0) return false;
 
-        // 由玩家自己选（范围 0~1，可放弃）：没选就什么都不发生
+        // 由玩家自己选（范围 1~1，发动后必须选一张）：无有效选项时防御性退出
         var chosen = (await CardSelectCmd.FromSimpleGrid(
             choiceContext,
             discardPile.Cards.ToList(),
             player,
-            CardPrefs(this, SelectionScreenPrompt, 0, 1) with { RequireManualConfirmation = true })).FirstOrDefault();
-        if (chosen == null) return;
+            CardPrefs(this, SelectionScreenPrompt, 1, 1) with { RequireManualConfirmation = true })).FirstOrDefault();
+        if (chosen == null || chosen.Owner != player || chosen.Pile?.Type != PileType.Discard) return false;
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
 
-        await CardCmd.Exhaust(choiceContext, chosen);
+        var payment = await CardCmd.Exhaust(choiceContext, chosen);
+        if (payment?.success != true) return false;
         EnergyCost.SetThisTurn(0);
+        return true;
     }
 
     // 送墓：从抽牌堆顶将3张卡送入弃牌堆（触发效果而非打出）

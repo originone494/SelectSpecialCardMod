@@ -38,7 +38,7 @@ public static class MonsterAttackSplitPatch
         if (Splitting.Contains(__instance)) return true; // 拆分期间的内部重入，放行
         // 路线 A：怪物手牌打出的攻击卡本身就是一次攻击，不再拆 3 份
         if (MonsterCardEffects.InPlay) return true;
-        if (!__instance.Attacker.IsMonster) return true; // 只拆怪物攻击（Creature.IsMonster）
+        if (__instance.Attacker is not { IsMonster: true }) return true; // 只拆怪物攻击（Creature.IsMonster）
         if (__instance.Attacker.PetOwner != null) return true; // 玩家方宠物（召唤卡）帮打：不拆
 
         var t = Traverse.Create(__instance);
@@ -108,7 +108,7 @@ public static class MonsterAttackSplitPatch
                 IntentCardFlySync.NotifyHit(cmd.Attacker!);
                 if (splitDamage) t.Field("_damagePerHit").SetValue(part);
                 else t.Field("_hitCount").SetValue((int)part);
-                if (cmd.Attacker.IsDead) break;
+                if (cmd.Attacker is not { IsAlive: true }) break;
                 await cmd.Execute(choiceContext);
                 index++;
             }

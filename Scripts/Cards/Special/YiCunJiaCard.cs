@@ -12,7 +12,7 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 // 一寸家：进入「一寸家」（能力由 YiCunJiaPower 承载）。
 public class YiCunJiaCard : SelectSpecialBaseCard
 {
-    public YiCunJiaCard() : base(2, CardType.Power, CardRarity.Ancient, TargetType.Self)
+    public YiCunJiaCard() : base(0, CardType.Power, CardRarity.Ancient, TargetType.Self)
     {
     }
 

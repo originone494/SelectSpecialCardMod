@@ -6,6 +6,7 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Powers;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using STS2RitsuLib.Interop.AutoRegistration;
 using SelectSpecialCardMod.Scripts.Base;
 
@@ -52,13 +53,23 @@ public class JiaShiZhenJieYuQuShenPower : SelectSpecialBasePower
         decimal handAttackDamage = Owner.Player == null
             ? 0m
             : PileType.Hand.GetPile(Owner.Player).Cards
-                .Where(card => card.Type == CardType.Attack && card.DynamicVars.ContainsKey("Damage"))
-                .Sum(card => card.DynamicVars.Damage.BaseValue);
+                .Where(card => card.Type == CardType.Attack)
+                .Sum(card => BaseAttackDamage(card, enemy));
 
         if (handAttackDamage > enemy.CurrentHp)
         {
             Flash();
             await CreatureCmd.Kill(enemy);
         }
+    }
+
+    private static decimal BaseAttackDamage(CardModel card, Creature target)
+    {
+        if (card.DynamicVars.ContainsKey("Damage"))
+            return Math.Max(0m, card.DynamicVars.Damage.BaseValue);
+        if (card.DynamicVars.ContainsKey("CalculatedDamage")
+            && card.DynamicVars["CalculatedDamage"] is CalculatedDamageVar calculated)
+            return Math.Max(0m, calculated.Calculate(target));
+        return 0m;
     }
 }

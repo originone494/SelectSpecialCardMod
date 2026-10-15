@@ -1,0 +1,23 @@
+using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Entities.Cards;
+using MegaCrit.Sts2.Core.Entities.Players;
+using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
+using SelectSpecialCardMod.Scripts.Rules;
+namespace SelectSpecialCardMod.Scripts.Tool;
+public static class MaterialPayment
+{
+    public static async Task<bool> Exhaust(PlayerChoiceContext ctx, Player owner, IReadOnlyList<CardModel> chosen, int minimum, PileType source)
+    {
+        if (chosen.Count < minimum || chosen.Distinct().Count() != chosen.Count
+            || chosen.Any(c => c.Owner != owner || c.Pile?.Type != source || c.HasBeenRemovedFromState)) return false;
+        EffectActivation.PaymentStarted();
+        foreach (var card in chosen)
+        {
+            if (MegaCrit.Sts2.Core.Combat.CombatManager.Instance.IsOverOrEnding) return false;
+            var result = await CardCmd.Exhaust(ctx, card);
+            if (result?.success != true) throw new InvalidOperationException($"Material payment failed: {card.Id}");
+        }
+        return true;
+    }
+}

@@ -18,6 +18,7 @@ using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Intent;
 using SelectSpecialCardMod.Scripts.Tool;
 using SelectSpecialCardMod.Scripts.Hook;
+using SelectSpecialCardMod.Scripts.Cards.Special;
 
 namespace SelectSpecialCardMod.Scripts;
 
@@ -45,8 +46,13 @@ public class Entry
     // 无界面、随战斗销毁。卡不能凭空消失，装备后必须有个落脚的牌堆，否则会留在消耗堆里被反复装备。
     public static PileType EquipPile;
 
+    // 超量素材保留实际卡牌实例，存于独立的战斗内隐藏牌堆。
+    public static PileType XyzMaterialPile;
+
+    private static bool _initialized;
     public static void Init()
     {
+        if (_initialized) return;
         var assembly = Assembly.GetExecutingAssembly();
         RitsuLibFramework.EnsureGodotScriptsRegistered(assembly, Logger);
 
@@ -69,6 +75,8 @@ public class Entry
         RegisterExtraPile();
         RegisterExtraUsedPile();
         RegisterEquipPile();
+        RegisterXyzMaterialPile();
+        MegaCrit.Sts2.Core.Combat.CombatManager.Instance.CombatEnded += _ => KeMoEquip.Reset();
 
         // 「时机」系统：攻击卡计数器 + 弃牌堆按钮右键挂接
         ShiJiTracker.Init();
@@ -79,8 +87,16 @@ public class Entry
         // （Switch + refreshEveryFrame：每帧重算，条件一变立刻亮/灭——不会再出现"用完了还黄着"）
         ModCardHandOutlineRegistry.Register<SelectSpecialBaseCard>(
             ModCardHandOutlineRules.Switch(
-                card => SpecialEffectHook.CanActivate(card) ? NCardHighlight.gold : null,
+                card => UiConditions.SpecialEffect(card) ? NCardHighlight.gold : null,
                 priority: 10,
+                visibleWhenUnplayable: true,
+                refreshEveryFrame: true));
+
+        // 已放置的灵摆卡默认蓝边，仅主动灵摆效果可发动时为金边；被动效果不改变颜色。
+        ModCardHandOutlineRegistry.Register<YiXiangMingVoiceCard>(
+            ModCardHandOutlineRules.Switch(
+                card => (card as YiXiangMingVoiceCard)?.PendulumOutlineColor,
+                priority: 20,
                 visibleWhenUnplayable: true,
                 refreshEveryFrame: true));
 
@@ -96,11 +112,11 @@ public class Entry
         // 召唤副本卡：宠物帮打（玩家回合开始按意图快照伤害攻击）
         PetAlly.Init();
 
-        // 击败每层第一个精英：Special 卡池 3 选 1 奖励（前提：持有「死亡讯息-红」，移植自 yuno mod）
+        // 击败每层第一个精英：Special 卡池 3 选 1 奖励（前提：持有「决斗盘」，移植自 yuno mod）
         EliteSpecialReward.Register();
 
-        // 开局发放「死亡讯息-红」：它是本 mod 特殊卡奖励的前提条件
-        DeadEndRedGrant.Register();
+        // 开局发放「决斗盘」，并兼容替换旧存档的「死亡讯息-红」。
+        DuelDskGrant.Register();
 
         // 额外卡组：设置页入口（局外选「额外怪兽」）+ 开局把选好的卡放进额外堆
         ExtraDeckSettings.Register();
@@ -109,6 +125,7 @@ public class Entry
         ExtraDeckSeries.Register();
         // 额外堆手动召唤：额外怪兽满足召唤条件时高亮额外堆，右键可召唤
         ExtraDeckSummonHook.Register();
+        PendulumSummon.Register();
 
         // Harmony 补丁（DrawWindowPatch 等）：实例 ID 用本 mod 自己的，避免与其他 mod 冲突。
         // 不用 PatchAll：它遇到单个补丁类应用失败会整体抛异常中断，排在后面的补丁类
@@ -122,6 +139,7 @@ public class Entry
             try
             {
                 harmony.CreateClassProcessor(type).Patch();
+                FeatureStatus.AppliedPatch(type);
             }
             catch (Exception ex)
             {
@@ -130,6 +148,8 @@ public class Entry
             }
         }
 
+        FeatureStatus.Complete();
+        _initialized = true;
         Logger.Info("[Init] SelectSpecialCardMod 初始化完成");
     }
 
@@ -214,5 +234,15 @@ public class Entry
             }).PileType;
 
         Logger.Info($"[CardPiles] 装备堆注册完成: 0x{(int)EquipPile:X8}");
+    }
+
+    private static void RegisterXyzMaterialPile()
+    {
+        XyzMaterialPile = ModCardPileRegistry.For(ModId)
+            .RegisterOwned("xyz_material_pile", new ModCardPileSpec
+            {
+                Scope = ModCardPileScope.CombatOnly,
+                Style = ModCardPileUiStyle.Headless,
+            }).PileType;
     }
 }

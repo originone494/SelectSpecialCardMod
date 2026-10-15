@@ -20,8 +20,10 @@ public static class IntentCardHook
     public static void Init()
     {
         CombatManager.Instance.CombatBegan += OnCombatBegan;
+        CombatManager.Instance.CombatEnded += _ => { LocalPlayer = null; MonsterDeck.ClearAll(); IntentCardTheft.Reset(); };
         RitsuLibFramework.SubscribeLifecycle<PlayerTurnStartedEvent>(evt =>
         {
+            if (!MegaCrit.Sts2.Core.Context.LocalContext.IsMe(evt.Player)) return;
             LocalPlayer = evt.Player;
             EnsureAttached();
         });
@@ -32,9 +34,10 @@ public static class IntentCardHook
         // 多人：必须取"本机玩家"而非列表第一个（FirstOrDefault 是房主），
         // 否则非房主客户端的伤害数值计算/卡 owner 归属全部指向别人
         LocalPlayer = MegaCrit.Sts2.Core.Context.LocalContext.GetMe(state.Players)
-                      ?? state.Players.FirstOrDefault();
+;
         // 路线 A：新战斗开始，清空上一场残留的怪物牌堆
         MonsterDeck.ClearAll();
+        IntentCardTheft.Reset();
         EnsureAttached();
     }
 

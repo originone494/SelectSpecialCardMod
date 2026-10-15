@@ -23,6 +23,12 @@ namespace SelectSpecialCardMod.Scripts.Intent;
 // 反射属性/字段读不到（会静默拿到 0）。
 public static class IntentCardMapper
 {
+    public static List<CardModel> BuildIntentCards(Creature enemy, Player player, ISet<IntentType> allowed)
+    {
+        var intents = enemy.Monster?.NextMove?.Intents;
+        return BuildIntentCards(intents?.Where(i => allowed.Contains(i.IntentType)).ToList(), enemy, player);
+    }
+
     public static List<CardModel> BuildIntentCards(Creature? enemy, Player player)
     {
         if (enemy == null) return new List<CardModel>();
@@ -167,7 +173,7 @@ public static class IntentCardMapper
             {
                 // 格挡和攻击一样按玩家侧算（含敏捷/遗物），并绿/红高亮；结算时传基础值，
                 // 引擎会再套一次同样的修正 → 显示的 = 打出的。其余意图用通用处理。
-                if (intent.IntentType == IntentType.Defend && fx is { Block: > 0 })
+                if (intent.IntentType == IntentType.Defend && fx is { BlockKnown: true })
                 {
                     int shown = PlayerSideBlock(card, fx.Block);
                     parts.Add(MonsterText.Of(MonsterText.Block,
@@ -188,9 +194,9 @@ public static class IntentCardMapper
     {
         switch (intent.IntentType)
         {
-            case IntentType.Defend when fx is { Block: > 0 }:
+            case IntentType.Defend when fx is { BlockKnown: true }:
                 return MonsterText.Of(MonsterText.Block, ("Block", fx.Block.ToString()));
-            case IntentType.Heal when fx is { Heal: > 0 }:
+            case IntentType.Heal when fx is { HealKnown: true }:
                 return MonsterText.Of(MonsterText.Heal, ("Heal", fx.Heal.ToString()));
             case IntentType.Buff when fx is { SelfPowers.Count: > 0 }:
                 return string.Join(MonsterText.IntentSeparator, fx.SelfPowers.Select(p => MonsterText.Of(MonsterText.GainPower,
@@ -208,6 +214,7 @@ public static class IntentCardMapper
     // 取该招式可用的数值：观测优先、逐字段回退到静态表（与打出结算同一份逻辑）
     internal static MonsterMoveEffects? EffectsFor(MonsterMoveCard card)
     {
+        if (card.FrozenEffects is { } frozen) return frozen;
         string moveId = card.SourceMove?.Id ?? "";
         // 人工覆盖表优先（作者明确指定的整条效果）
         var manual = MonsterManualTable.Lookup(card.MonsterKind, moveId);
@@ -733,6 +740,7 @@ public static class IntentCardMapper
         if (copy is MonsterMoveCard move && source is MonsterMoveCard moveSrc)
         {
             move.InitMove(moveSrc.SourceMove, moveSrc.Intents);
+            move.EffectSnapshot = moveSrc.EffectSnapshot;
             move.CardTitle = moveSrc.CardTitle;
             move.ArtPath = moveSrc.ArtPath;
             move.MonsterKind = moveSrc.MonsterKind;

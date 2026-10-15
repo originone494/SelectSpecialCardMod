@@ -1,12 +1,11 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
-using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
-using STS2RitsuLib;
 using SelectSpecialCardMod.Scripts.Base;
 
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
@@ -20,33 +19,28 @@ public class ChangShiMingZiCard : SelectSpecialBaseCard
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
 
-    // 本回合打出的卡（按实例去重；回合开始清空）
-    private static readonly HashSet<CardModel> PlayedThisTurn = new();
-
-    static ChangShiMingZiCard()
-    {
-        RitsuLibFramework.SubscribeLifecycle<PlayerTurnStartedEvent>(_ => PlayedThisTurn.Clear());
-    }
-
-    // 广播钩子：记录本回合打出的每一张卡
-    public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
-    {
-        if (Owner == null) return;
-        if (cardPlay.Card == null || cardPlay.Card == this) return;
-        if (cardPlay.Card.Owner != Owner) return;
-        PlayedThisTurn.Add(cardPlay.Card);
-    }
-
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        if (Owner == null) return;
+        var combat = CombatState;
+        if (Owner == null || combat == null) return;
 
-        // 将这个回合打出的卡加入手牌，耗能随机变为 0-3（SetThisTurn：本回合内生效）
-        foreach (var card in PlayedThisTurn.ToList())
+        // 原生记录包含在本卡入手之前打出的牌，不依赖本卡当时是否参与钩子广播。
+        // 只回收本人的已完成打出；当前自身还在结算，且同一实例重复打出只回收一次。
+        var cards = CombatManager.Instance.History.CardPlaysFinished
+            .Where(e => e.HappenedThisTurn(combat) && e.CardPlay.Player == Owner)
+            .Select(e => e.CardPlay.Card)
+            .Where(card => card != this)
+            .Distinct().ToList();
+        foreach (var card in cards)
         {
-            await CardPileCmd.Add(card, PileType.Hand);
-            card.EnergyCost.SetThisTurn(Owner.RunState.Rng.Niche.NextInt(0, 4));
+            if (CombatManager.Instance.IsOverOrEnding || CombatState != combat) break;
+            if (card.Owner != Owner) continue;
+            // 已打出的能力牌已被原版移出战斗，不能重新入堆；为它创建独立战斗副本。
+            var recalled = card.HasBeenRemovedFromState ? combat.CloneCard(card) : card;
+            if (recalled.Pile?.Type != PileType.Hand)
+                await CardPileCmd.Add(recalled, PileType.Hand);
+            if (recalled.Pile?.Type == PileType.Hand)
+                recalled.EnergyCost.SetThisTurn(Owner.RunState.Rng.Niche.NextInt(0, 4));
         }
-        PlayedThisTurn.Clear();
     }
 }

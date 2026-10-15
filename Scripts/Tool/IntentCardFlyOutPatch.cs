@@ -33,9 +33,9 @@ public static class IntentCardFlyOutPatch
 public static class MonsterIntentScopePatch
 {
     [HarmonyPrefix]
-    static bool EnterScope(MoveState __instance, ref Task __result)
+    static bool EnterScope(MoveState __instance, ref Task __result, out SelectSpecialCardMod.Scripts.Rules.AsyncScope<object>.Frame __state)
     {
-        IntentCardFlySync.BeginPerformScope();
+        __state = IntentCardFlySync.BeginPerformScope();
 
         // 「强夺」：逃跑意图被抢 → 整个 move 直接跳过。逃跑动画（TriggerAnim("Flee")）
         // 在 move lambda 里独立于 CreatureCmd.Escape 提前播，命令层拦截来不及——
@@ -54,20 +54,14 @@ public static class MonsterIntentScopePatch
     }
 
     [HarmonyPostfix]
-    static void WrapScope(ref Task __result)
+    static void WrapScope(ref Task __result, SelectSpecialCardMod.Scripts.Rules.AsyncScope<object>.Frame? __state)
     {
-        __result = Wrapped(__result);
-
-        static async Task Wrapped(Task inner)
-        {
-            try
-            {
-                await inner;
-            }
-            finally
-            {
-                IntentCardFlySync.EndPerformScope();
-            }
-        }
+        if (__state == null) return;
+        IntentCardFlySync.RestorePerformScope(__state);
+        __result = Complete(__result, __state);
     }
+    static async Task Complete(Task task, SelectSpecialCardMod.Scripts.Rules.AsyncScope<object>.Frame frame)
+    { try { await task; } finally { IntentCardFlySync.EndPerformScope(frame); } }
+    static System.Exception? Finalizer(System.Exception? __exception, SelectSpecialCardMod.Scripts.Rules.AsyncScope<object>.Frame? __state)
+    { if (__exception != null && __state != null) IntentCardFlySync.EndPerformScope(__state); return __exception; }
 }

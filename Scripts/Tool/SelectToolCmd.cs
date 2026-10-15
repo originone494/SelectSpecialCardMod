@@ -26,6 +26,7 @@ using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Cards.Other;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Intent;
+using SelectSpecialCardMod.Scripts.Hook;
 
 namespace SelectSpecialCardMod.Scripts.Tool;
 
@@ -56,10 +57,10 @@ public static class SelectToolCmd
     //   从手牌消耗 → NCardExhaustQuickVfx（快速版）+ card_exhaust.mp3；
     //   其他来源   → NCardExhaustVfx（完整侵蚀）。
     // 只有"卡在无界面牌堆里、根本没有卡面节点"这种原版播不了的情况，才需要这里补一次特效。
-    public static async Task ExhaustWithVfx(PlayerChoiceContext ctx, CardModel card)
+    public static async Task<CardPileAddResult?> ExhaustWithVfx(PlayerChoiceContext ctx, CardModel card)
     {
         PlayExhaustVfx(card);
-        await CardCmd.Exhaust(ctx, card, false, skipVisuals: true);
+        return await CardCmd.Exhaust(ctx, card, false, skipVisuals: true);
     }
 
     /// <summary>只播原版「消耗」特效，不移动卡。</summary>
@@ -141,12 +142,16 @@ public static class SelectToolCmd
     // 「把牌从牌堆返回另一个牌堆」（消耗堆 → 抽牌堆·额外堆）的统一演出。
     // 牌堆里的卡没有常驻节点，原版对"牌堆→牌堆"的移动未必会播"这张卡飞过去"的效果
     // （尤其进 mod 牌堆「额外堆」时完全没有演出），所以统一走这里：
-    // 先静默入堆，再补一个「卡出现在屏幕中央 → 飞向目标牌堆」的原版飞行特效。
+    // 已在手牌或 Play 的卡走原版移动，原卡面随移动清理；隐藏牌堆的卡
+    // 才静默入堆，再补「卡出现在屏幕中央 → 飞向目标牌堆」的飞行特效。
     public static async Task ReturnCardToPile(CardModel card, PileType target,
         CardPilePosition position = CardPilePosition.Bottom)
     {
-        await CardPileCmd.Add(card, target, position, null, skipVisuals: true);
-        await PlayCardFlyToPile(card, target);
+        // 跳过 Play/手牌的原版显示处理会留下原卡面；额外创建飞行副本无法清理它。
+        bool useNativeVisuals = card.Pile?.Type is PileType.Hand or PileType.Play;
+        var result = await CardPileCmd.Add(card, target, position, null, skipVisuals: !useNativeVisuals);
+        if (!useNativeVisuals && result.success && card.Pile?.Type == target)
+            await PlayCardFlyToPile(card, target);
     }
 
     /// <summary>只播"卡飞向目标牌堆"的原版飞行特效，不移动卡。</summary>
@@ -197,7 +202,23 @@ public static class SelectToolCmd
     // isExhaust = true 时改为送入消耗堆（并结算"被消耗"语义）。
     // minAmount = 至少要选几张（默认 0 = 可以什么都不选就退出）；
     // requireManualConfirmation = true 时即使候选数 ≤ 最少选择数（例如只有 1 张）也必须玩家自己点。
-    public static async Task<List<CardModel>> RetrieverCard(
+    public static Task<List<CardModel>> RetrieverCard(
+        PlayerChoiceContext choiceContext,
+        Player player,
+        Func<CardModel, bool> filter,
+        Func<CardPoolModel, bool>? poolFilter = null,
+        int amount = 1, bool isDiscard = false, bool isRandom = false, LocString? prompt = null,
+        CardModel? source = null, bool isExhaust = false,
+        int minAmount = 0, bool requireManualConfirmation = false)
+    {
+        if (isDiscard && isExhaust) throw new ArgumentException("Retrieval destination cannot be both Discard and Exhaust.");
+        return CardRetrieval.Retrieve(choiceContext, player, filter,
+            new RetrievalOptions(amount, minAmount,
+                isExhaust ? RetrievalDestination.Exhaust : isDiscard ? RetrievalDestination.Discard : RetrievalDestination.Hand,
+                isRandom ? RetrievalChoice.Random : RetrievalChoice.Player, requireManualConfirmation), poolFilter, prompt, source);
+    }
+
+    internal static async Task<List<CardModel>> RetrieveCore(
         PlayerChoiceContext choiceContext,
         Player player,
         Func<CardModel, bool> filter,
@@ -214,7 +235,7 @@ public static class SelectToolCmd
             .Where(c => !c.Tags.Contains(SelectTags.ExtraMonster))
             .Where(c => poolFilter == null || (c.Pool != null && poolFilter(c.Pool)))
             .GroupBy(c => c.Id)
-            .Select(g => g.First())
+            .Select(g => g.First()).OrderBy(c => c.Id)
             .ToList();
         if (cards.Count == 0) return [];
 
@@ -240,11 +261,12 @@ public static class SelectToolCmd
             var usedPrompt = prompt ?? (source != null
                 ? SelectSpecialBaseCard.RetrieveNamedPrompt()
                 : SelectSelectorPrefs.RetrieverSelectionPrompt);
-            if (source != null) usedPrompt.Add("CardName", source.Title);
 
+
+            usedPrompt = CardPrompts.Named(usedPrompt, source);
             var prefs = new CardSelectorPrefs(usedPrompt, minAmount, amount)
             {
-                RequireManualConfirmation = requireManualConfirmation,
+                RequireManualConfirmation = requireManualConfirmation || minAmount > 0,
             };
             selectCards = (await CardSelectCmd.FromSimpleGrid(
                 choiceContext,
@@ -254,6 +276,7 @@ public static class SelectToolCmd
             )).ToList();
         }
 
+        if (selectCards.Count > 0) SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
         if (isExhaust)
         {
             // 「检索并消耗」：与「检索并丢弃」同款做法，只是进的是消耗堆、结算的是"被消耗"语义。
@@ -335,7 +358,7 @@ public static class SelectToolCmd
     // 「是/否」选择：弹出「是」「否」两张标记卡让玩家点选（原版 yuno-mod 同款机制）
     public static async Task<bool> AskYesNo(PlayerChoiceContext choiceContext, Player player, LocString prompt, CardModel? source = null)
     {
-        if (source != null) prompt.Add("CardName", source.Title);
+        prompt = CardPrompts.Named(prompt, source);
 
         var shi = player.Creature.CombatState!.CreateCard<ShiCard>(player);
         var fou = player.Creature.CombatState!.CreateCard<FouCard>(player);
@@ -445,10 +468,10 @@ public static class SelectToolCmd
         if (source != null)
         {
             foreseePrompt = SelectSpecialBaseCard.ForeseeNamedPrompt;
-            foreseePrompt.Add("CardName", source.Title);
+            foreseePrompt = CardPrompts.Named(foreseePrompt, source);
         }
 
-        var prefs = new CardSelectorPrefs(foreseePrompt, 1, 1);
+        var prefs = new CardSelectorPrefs(foreseePrompt, 1, 1) { RequireManualConfirmation = true };
         var selectedCards = (await CardSelectCmd.FromSimpleGrid(
             choiceContext,
             cardsToScry,
@@ -486,28 +509,24 @@ public static class SelectToolCmd
         var list = new List<CardModel>();
         var results = new List<CardPileAddResult>();
 
-        for (int i = 0; i < amount; i++)
+        if (amount <= 0 || CombatManager.Instance.IsOverOrEnding) return list;
+        var draw = PileType.Draw.GetPile(player);
+        var batch = draw.Cards.Take(amount).ToList();
+        // 不足时只从本批开始前的弃牌堆补足，不把刚送墓的卡洗回并重复计数。
+        if (batch.Count < amount && PileType.Discard.GetPile(player).Cards.Count > 0)
         {
-            CardModel cardModel = PileType.Draw.GetPile(player).Cards.ToList().FirstOrDefault()!;
-            if (cardModel == null)
-            {
-                await CardPileCmd.ShuffleIfNecessary(choiceContext, player);
-                cardModel = PileType.Draw.GetPile(player).Cards.ToList().FirstOrDefault()!;
-            }
-            if (cardModel != null)
-            {
-                await CardCmd.Discard(choiceContext, cardModel);
-
-                // 弃牌后自行组装入堆结果，仅用于播放预览（PreviewPileAdd 只读取 success 与 cardAdded）
-                results.Add(new CardPileAddResult
-                {
-                    success = true,
-                    cardAdded = cardModel,
-                    targetPile = PileType.Discard,
-                });
-
-                list.Add(cardModel);
-            }
+            await CardPileCmd.Shuffle(choiceContext, player);
+            batch.AddRange(draw.Cards.Where(c => !batch.Contains(c)).Take(amount - batch.Count));
+        }
+        batch = batch.Where(c => c.Pile?.Type == PileType.Draw && !c.HasBeenRemovedFromState).ToList();
+        await SongMuHook.DeferTriggers(async () =>
+        {
+            if (batch.Count > 0) await CardCmd.Discard(choiceContext, batch);
+        });
+        foreach (var card in batch)
+        {
+            results.Add(new CardPileAddResult { success = true, cardAdded = card, targetPile = PileType.Discard });
+            list.Add(card);
         }
 
         PreviewPileAdd(results, 2f);

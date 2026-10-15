@@ -14,7 +14,7 @@ using SelectSpecialCardMod.Scripts.Custom;
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
 // 刻魔衍生物（由「刻魔·赞圣」加入手牌的衍生物）
-//   打出：造成0点伤害（打出后消耗）
+//   打出：造成0点伤害（打出后除外）
 public class KeMoYanShengWuCard : SelectSpecialBaseCard
 {
     public KeMoYanShengWuCard() : base(0, CardType.Attack, CardRarity.Token, TargetType.AnyEnemy)
@@ -26,7 +26,7 @@ public class KeMoYanShengWuCard : SelectSpecialBaseCard
         new DamageVar(0m, ValueProp.Move),
     ];
 
-    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [SelectKeywords.ChuWai];
 
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.KeMo,
@@ -35,7 +35,7 @@ public class KeMoYanShengWuCard : SelectSpecialBaseCard
     ];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
-        HoverTipFactory.FromKeyword(CardKeyword.Exhaust),
+        HoverTipFactory.FromKeyword(SelectKeywords.ChuWai),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),

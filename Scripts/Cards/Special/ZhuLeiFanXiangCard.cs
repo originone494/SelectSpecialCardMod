@@ -54,7 +54,10 @@ public class ZhuLeiFanXiangCard : SelectSpecialBaseCard, ISongMuCard
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
         // ① 是 →「检索」1张「珠泪下级怪兽」卡；否 → 从弃牌堆选择1张「珠泪怪兽」加入手牌
-        bool retrieve = await SelectToolCmd.AskYesNo(choiceContext, Owner, RetrieveChoicePrompt, source: this);
+        var discardPile = PileType.Discard.GetPile(Owner);
+        // 没有可回收的珠泪怪兽时直接检索，不询问无法执行的回收分支。
+        bool retrieve = !discardPile.Cards.Any(ZhuLeiFilter.IsMonster)
+            || await SelectToolCmd.AskYesNo(choiceContext, Owner, RetrieveChoicePrompt, source: this);
 
         CardModel? added;
         if (retrieve)
@@ -68,7 +71,6 @@ public class ZhuLeiFanXiangCard : SelectSpecialBaseCard, ISongMuCard
         }
         else
         {
-            var discardPile = PileType.Discard.GetPile(Owner);
             added = discardPile.Cards.Any(ZhuLeiFilter.IsMonster)
                 ? (await CardSelectCmd.FromCombatPile(
                     choiceContext,
@@ -77,9 +79,10 @@ public class ZhuLeiFanXiangCard : SelectSpecialBaseCard, ISongMuCard
                     CardPrefs(this, FromDiscardPrompt, 1, 1),
                     filter: ZhuLeiFilter.IsMonster)).FirstOrDefault()
                 : null;
+            if (added != null) await CardPileCmd.Add(added, PileType.Hand);
         }
 
-        if (added == null) return;
+        if (added?.Pile?.Type != PileType.Hand) return;
 
         // ② 之后：丢弃1张与其费用相同的「珠泪怪兽」卡（允许就是刚加入手牌的这一张）
         int cost = added.EnergyCost.GetWithModifiers(CostModifiers.None);

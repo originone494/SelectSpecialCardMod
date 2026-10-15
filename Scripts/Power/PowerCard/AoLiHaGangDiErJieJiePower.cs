@@ -14,6 +14,7 @@ using MegaCrit.Sts2.Core.ValueProps;
 using STS2RitsuLib.Interop.AutoRegistration;
 using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Custom;
+using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Power;
 
@@ -27,9 +28,6 @@ public class AoLiHaGangDiErJieJiePower : SelectSpecialBasePower
     public override PowerType Type => PowerType.Buff;
     public override PowerStackType StackType => PowerStackType.Single;
 
-    // 本次攻击是否已被“弃1张手牌”抵消（BeforeAttack 里决定，AfterAttack 清除）
-    private bool _negateAttack;
-
     // 回合结束时，选择1张手牌获得永久「保留」
     // 用 BeforeSideTurnEnd（"清空手牌"之前）：用 AfterSideTurnEnd 的话手牌已经被清掉，
     // 没有「保留」的牌都不在了，这条效果几乎选不到东西。
@@ -42,7 +40,7 @@ public class AoLiHaGangDiErJieJiePower : SelectSpecialBasePower
         if (handCards.Count == 0) return;
 
         var selected = (await CardSelectCmd.FromHand(
-            prefs: new CardSelectorPrefs(SelectSelectorPrefs.RetainSelectionPrompt, 1, 1),
+            prefs: new CardSelectorPrefs(SelectSelectorPrefs.RetainSelectionPrompt, 1, 1) { RequireManualConfirmation = true },
             context: choiceContext,
             player: Owner.Player!,
             filter: null,
@@ -54,11 +52,10 @@ public class AoLiHaGangDiErJieJiePower : SelectSpecialBasePower
     }
 
     // 敌人攻击前询问一次：可以选择弃1张手牌，整次攻击对我造成的伤害归零。
-    // BeforeAttack 在所有伤害结算前异步触发，是唯一能弹选牌界面的时机；
-    // 伤害归零在 ModifyDamageMultiplicative（同步）里完成。
+    // 保护绑定该攻击命令，伤害和格挡由统一补丁处理。
     public override async Task BeforeAttack(AttackCommand command)
     {
-        _negateAttack = false;
+        if (FeatureStatus.Checked && !FeatureStatus.AttackProtection) return;
         if (command.Attacker == null || !command.Attacker.IsMonster) return;
         if (command.TargetSide != Owner.Side) return;
         if (!Owner.HasPower<AoLiHaGangDeJieJiePower>()) return;
@@ -71,23 +68,11 @@ public class AoLiHaGangDiErJieJiePower : SelectSpecialBasePower
             player: Owner.Player,
             filter: null,
             source: this)).ToList();
-        if (selected.Count == 0) return;
+        if (selected.Count == 0 || selected[0].Pile?.Type != PileType.Hand) return;
 
+        if (!AttackDamageNegate.Mark(command, Owner)) return;
         Flash();
-        _negateAttack = true;
         await CardCmd.Discard(new BlockingPlayerChoiceContext(), selected[0]);
     }
 
-    public override decimal ModifyDamageMultiplicative(Creature? target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource, CardPlay? cardPlay)
-    {
-        if (_negateAttack && target == Owner && dealer != null && dealer.IsMonster)
-            return 0m;
-        return 1m;
-    }
-
-    public override Task AfterAttack(PlayerChoiceContext choiceContext, AttackCommand command)
-    {
-        _negateAttack = false;
-        return Task.CompletedTask;
-    }
 }

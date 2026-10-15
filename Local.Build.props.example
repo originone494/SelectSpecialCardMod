@@ -1,0 +1,5 @@
+<Project><PropertyGroup>
+  <Sts2Dir>D:/steam/steamapps/common/Slay the Spire 2</Sts2Dir>
+  <GodotExe>D:/path/to/Godot_console.exe</GodotExe>
+  <RitsuLibRoot>D:/steam/steamapps/workshop/content/2868840/3747602295/</RitsuLibRoot>
+</PropertyGroup></Project>

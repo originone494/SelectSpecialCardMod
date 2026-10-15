@@ -24,13 +24,14 @@ public static class ExtraDeckStore
     private const string SaveDir = "user://SelectSpecialCardMod";
     private const string SavePath = "user://SelectSpecialCardMod/extra_deck.json";
 
-    // 存的是卡牌类型的全名（如 SelectSpecialCardMod.Scripts.Cards.Special.ZhuLeiShuiXianCard）：
-    // 比 ModelId 好读，也不受本地化/翻译变动影响。
+    // 存完整 ModelId；读取时兼容旧类型全名，未知条目保留供后续迁移。
     private static List<string>? _selected;
+    private static bool _writable = true;
+    private static readonly List<string> Unresolved = [];
 
     public static IReadOnlyList<string> Selected => _selected ??= Load();
 
-    public static string KeyOf(CardModel card) => card.GetType().FullName ?? card.GetType().Name;
+    public static string KeyOf(CardModel card) => card.Id.ToString();
 
     /// <summary>这张卡已经选了几份。</summary>
     public static int CountOf(CardModel card)
@@ -45,10 +46,12 @@ public static class ExtraDeckStore
     public static bool Add(CardModel card)
     {
         var list = _selected ??= Load();
+        if (!_writable) return false;
+        if (!card.Tags.Contains(SelectTags.ExtraMonster)) return false;
         if (CountOf(card) >= MaxCopiesPerName) return false;
         if (list.Count >= MaxCards) return false;
         list.Add(KeyOf(card));
-        Save();
+        if (!Save()) { list.RemoveAt(list.Count - 1); return false; }
         return true;
     }
 
@@ -56,15 +59,21 @@ public static class ExtraDeckStore
     public static bool Remove(CardModel card)
     {
         var list = _selected ??= Load();
-        if (!list.Remove(KeyOf(card))) return false;
-        Save();
+        if (!_writable) return false;
+        var key = KeyOf(card); var index = list.IndexOf(key);
+        if (index < 0) return false;
+        list.RemoveAt(index);
+        if (!Save()) { list.Insert(index, key); return false; }
         return true;
     }
 
     public static void Clear()
     {
-        (_selected ??= Load()).Clear();
-        Save();
+        var list = _selected ??= Load();
+        if (!_writable) return;
+        var previous = list.ToArray();
+        list.Clear();
+        if (!Save()) list.AddRange(previous);
     }
 
     /// <summary>所有可选的「额外怪兽」（规范卡实例，按卡名排序）。</summary>
@@ -78,7 +87,7 @@ public static class ExtraDeckStore
 
     /// <summary>按存的类型名找回规范卡实例；找不到（例如那个卡被删了）返回 null。</summary>
     public static CardModel? FindByKey(string key)
-        => ModelDb.AllCards.FirstOrDefault(c => KeyOf(c) == key);
+        => ModelDb.AllCards.FirstOrDefault(c => KeyOf(c) == key || c.GetType().FullName == key);
 
     private static List<string> Load()
     {
@@ -89,7 +98,14 @@ public static class ExtraDeckStore
             using var file = FileAccess.Open(SavePath, FileAccess.ModeFlags.Read);
             if (file == null) return list;
             var parsed = Json.ParseString(file.GetAsText());
-            if (parsed.VariantType != Variant.Type.Array) return list;
+            if (parsed.VariantType == Variant.Type.Dictionary)
+            {
+                var envelope = parsed.AsGodotDictionary();
+                if (!envelope.TryGetValue("version", out var version) || version.AsInt64() != 1)
+                    throw new InvalidOperationException("Unsupported extra-deck data version.");
+                parsed = envelope["cards"];
+            }
+            if (parsed.VariantType != Variant.Type.Array) throw new InvalidOperationException("Invalid extra-deck data.");
             foreach (var item in parsed.AsGodotArray())
             {
                 if (item.VariantType == Variant.Type.String) list.Add(item.AsString());
@@ -97,24 +113,30 @@ public static class ExtraDeckStore
         }
         catch (Exception e)
         {
-            GD.PushWarning($"[SelectSpecialCardMod] 额外卡组读取失败（当作空）：{e.Message}");
+            _writable = false;
+            GD.PushWarning($"[SelectSpecialCardMod] 额外卡组读取失败，已保留原文件并禁止覆盖：{e.Message}");
         }
-        return list.Take(MaxCards).ToList();
+        Unresolved.AddRange(list.Where(k => FindByKey(k) == null));
+        return list.Select(FindByKey).OfType<CardModel>().Where(c => c.Tags.Contains(SelectTags.ExtraMonster))
+            .GroupBy(c => c.Id).SelectMany(g => g.Take(MaxCopiesPerName)).Take(MaxCards).Select(KeyOf).ToList();
     }
 
-    private static void Save()
+    private static bool Save()
     {
+        if (!_writable) return false;
         try
         {
             DirAccess.MakeDirRecursiveAbsolute(SaveDir);
             var arr = new Godot.Collections.Array();
-            foreach (var key in _selected ?? new List<string>()) arr.Add(key);
-            using var file = FileAccess.Open(SavePath, FileAccess.ModeFlags.Write);
-            file?.StoreString(Json.Stringify(arr, "  "));
+            foreach (var key in (_selected ?? new List<string>()).Concat(Unresolved)) arr.Add(key);
+            AtomicJsonStore.Write(SavePath, Json.Stringify(new Godot.Collections.Dictionary
+                { { "version", 1 }, { "cards", arr } }, "  "));
+            return true;
         }
         catch (Exception e)
         {
             GD.PushWarning($"[SelectSpecialCardMod] 额外卡组保存失败：{e.Message}");
+            return false;
         }
     }
 }

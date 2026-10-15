@@ -66,7 +66,7 @@ public class KeMoZanShengCard : SelectSpecialBaseCard
     public override async Task AfterCardChangedPiles(CardModel card, PileType oldPileType, AbstractModel? clonedBy)
     {
         await base.AfterCardChangedPiles(card, oldPileType, clonedBy);
-        if (card == this) return;
+        if (card == this || card.Owner != Owner) return;
         if (oldPileType != PileType.Hand) return;                 // 必须是"从手牌"被消耗
         if (card.Pile?.Type != PileType.Exhaust) return;          // 且确实进了消耗堆
         if (!card.Tags.Contains(SelectTags.KeMoGuaiShou)) return; // 「刻魔怪兽」

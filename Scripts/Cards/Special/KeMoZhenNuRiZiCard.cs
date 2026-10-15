@@ -27,7 +27,7 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 //   打出：造成28点伤害
 //   特殊效果（右键手牌发动）：随机击晕 N 只敌人（N = 这张卡当前装备数）；装备数 0 时不能发动
 //   消耗（这张卡被消耗时）：消耗堆里必须有"除此卡以外的「光恶魔」"，否则整条不发动；
-//         先把它返回抽牌堆·额外堆，再消耗一名敌人的 1 张意图卡牌（玩家从所有敌人的意图卡里选）
+//         先询问是否发动；选择「是」后将其返回抽牌堆·额外堆，再消耗一名敌人的 1 张意图卡牌
 public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISpecialEffectCard
 {
     public KeMoZhenNuRiZiCard() : base(2, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
@@ -82,23 +82,31 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
     public bool CanActivateSpecialEffect(Player player) => KeMoEquip.EquipCount(this) >= 1;
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext ctx, Player player)
+    { await TryActivateSpecialEffect(ctx, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext ctx, Player player)
     {
         int count = KeMoEquip.EquipCount(this);
-        if (count <= 0) return;
-        if (CombatState == null) return;
+        if (count <= 0) return false;
+        var combat = CombatState;
+        if (combat == null) return false;
 
         // 从当前可命中的敌人里"不重复地随机"取最多 count 只，逐个击晕（原版 CreatureCmd.Stun）
-        var pool = CombatState.HittableEnemies.ToList();
+        var pool = combat.HittableEnemies.ToList();
         for (int i = 0; i < count && pool.Count > 0; i++)
         {
             var enemy = player.RunState.Rng.CombatTargets.NextItem(pool);
             if (enemy == null) break;
             pool.Remove(enemy);
             await CreatureCmd.Stun(enemy);
+            SpecialEffectVfx.ShowStun(enemy);
         }
+        return true;
     }
 
     // 「消耗」：这张卡被消耗时触发
+    private static LocString ConsumeChoicePrompt { get; } =
+        new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_ZHEN_NU_RI_ZI_XIAO_HAO_CHOICE");
     private static LocString ConsumeGuangEMoPrompt { get; } =
         new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_LUO_LEI_RI_ZI_XIAO_HAO");
     private static LocString ConsumeIntentPrompt { get; } =
@@ -114,6 +122,9 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
         // ① 消耗堆里没有"除此卡以外的「光恶魔」" → 整条不发动
         var exhaustPile = PileType.Exhaust.GetPile(Owner);
         if (!exhaustPile.Cards.Any(c => c != this && IsGuangEMo(c))) return;
+
+        // 选择「否」只放弃本次被消耗效果，不回收卡牌，也不消耗敌人的意图。
+        if (!await SelectToolCmd.AskYesNo(choiceContext, Owner, ConsumeChoicePrompt, source: this)) return;
 
         var picked = (await CardSelectCmd.FromCombatPile(
             choiceContext,
@@ -143,9 +154,7 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
         var candidates = new List<CardModel>();
         foreach (var enemy in enemies)
         {
-            var overlay = IntentCardHook.FindOverlay(enemy);
-            if (overlay == null) continue;
-            candidates.AddRange(overlay.StealableModels);
+            candidates.AddRange(MonsterDeck.Stealable(enemy));
         }
         if (candidates.Count == 0) return;
 
@@ -159,10 +168,10 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
         foreach (var enemy in enemies)
         {
             var overlay = IntentCardHook.FindOverlay(enemy);
-            if (overlay == null) continue;
             // ConsumeCard 只对"拥有这张意图卡"的那只怪成功（不是它的卡会直接返回 false）；
             // 演出用原版「消耗」特效（卡面侵蚀消散），不再是强夺的"飞向手牌区"
-            if (!overlay.ConsumeCard(picked)) continue;
+            if (!MonsterDeck.TryRemoveIntent(enemy, picked)) continue;
+            overlay?.ConsumeCard(picked);
 
             // 路线 A：MonsterDeck 驱动的怪，StealCard 内部已经让它这一手空过；
             // 没被 MonsterDeck 跟踪的怪，则记一份"通用占位"，顶替它下一个动作（与强夺同一套）

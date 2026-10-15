@@ -27,9 +27,18 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 //   驻场：回合结束时，若没有人工制品，获得1层人工制品（本卡在手上时）
 //   应对：同名卡一回合一次。受到敌人攻击前，若手牌存在「珠泪」卡，可以选择丢弃1张「珠泪」卡，
 //         使那次攻击造成的伤害为0。
-//   送墓：同名卡一回合一次。打出这张卡，之后，将这张卡加入手牌。
+//   送墓：每个实例仅一次。打出这张卡，之后，将这张卡加入手牌。
 public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
 {
+    private bool _songMuUsed;
+
+    protected override void AfterCloned()
+    {
+        base.AfterCloned();
+        // 新副本是独立实例，不继承来源实例的送墓次数。
+        _songMuUsed = false;
+    }
+
     public ZhuLeiLuShaKaCard() : base(2, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
     {
     }
@@ -80,6 +89,9 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
         if (!PileType.Hand.GetPile(Owner).Cards.Contains(this)) return;
         if (Owner.Creature.HasPower<ArtifactPower>()) return;
 
+        if (!await ZhuChangEffectVfx.Play(this, this)) return;
+        if (CombatState == null || Pile?.Type != PileType.Hand
+            || Owner.Creature.HasPower<ArtifactPower>()) return;
         await PowerCmd.Apply<ArtifactPower>(choiceContext, Owner.Creature, 1, Owner.Creature, this);
     }
 
@@ -87,7 +99,9 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
     public override async Task BeforeDamageReceived(PlayerChoiceContext choiceContext, Creature target, decimal amount,
         ValueProp props, Creature? dealer, CardModel? cardSource)
     {
-        if (target != Owner.Creature) return;
+
+        if (FeatureStatus.Checked && !FeatureStatus.AttackProtection) return;        if (target != Owner.Creature) return;
+        if (ResponseDamageNegate.IsWholeAttackMarked(target)) return;
         if (CombatState == null) return;
         if (!PileType.Hand.GetPile(Owner).Cards.Contains(this)) return;
         if (cardSource != null) return;                      // 只要"受到敌人攻击"，排除卡牌/能力造成的伤害
@@ -97,7 +111,7 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
         if (player is null) return;
 
         // 同名卡一回合一次
-        string onceKey = PerTurnOnce.Key("YingDui", Id.Entry);
+        string onceKey = PerTurnOnce.Key("YingDui", Id.ToString());
         if (PerTurnOnce.IsUsed(player, onceKey)) return;
 
         // 条件：手牌存在「珠泪」卡（本卡自己也是珠泪卡，所以在手牌时就已满足）
@@ -126,26 +140,17 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
 
         await CardCmd.Discard(choiceContext, selected[0]);
 
-        // 举旗：让这次伤害变成真·0（连格挡都不掉，见 Tool/LuShaKaDamageNegate.cs）
-        LuShaKaDamageNegate.Mark(Owner.Creature);
+        // 保护同一次攻击的全部伤害段，连格挡也不消耗。
+        ResponseDamageNegate.MarkWholeAttack(target);
     }
 
-    // 同步钩子：把这次伤害的 HP 损失清零（用 BeforeOsty 阶段，它一定收到"原本的目标"，
-    // 不会被后面的 unblocked-damage 重定向换掉目标，所以旗子必定被收走）
-    public override decimal ModifyHpLostBeforeOsty(Creature target, decimal amount, ValueProp props, Creature? dealer, CardModel? cardSource)
-    {
-        if (!LuShaKaDamageNegate.Consume(target)) return amount;
-
-        return 0m;   // 只抵消这一次
-    }
-
-    // 送墓：同名卡一回合一次。打出这张卡，之后，将这张卡加入手牌。
+    // 送墓：每个实例仅一次，换回合不恢复，同名的不同实例互不占用。
     public async Task SongMuSpecial(PlayerChoiceContext ctx, Player player)
     {
-        string onceKey = PerTurnOnce.Key("SongMu", Id.Entry);
-        if (PerTurnOnce.IsUsed(player, onceKey)) return;
-        // 先记账：连锁里再丢掉一张同名卡时，它的送墓不会二次发动
-        PerTurnOnce.Mark(player, onceKey);
+        if (_songMuUsed || Owner != player || Pile?.Type != PileType.Discard
+            || CombatState == null || CombatManager.Instance.IsOverOrEnding) return;
+        // 在自动打出前记账，防止本实例在连锁中再次送墓时重入。
+        _songMuUsed = true;
 
         // ① 打出这张卡（随机敌人）
         Creature? enemy = player.RunState.Rng.CombatTargets.NextItem(player.Creature.CombatState!.HittableEnemies);

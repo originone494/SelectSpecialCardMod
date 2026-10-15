@@ -72,11 +72,11 @@ public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChan
     }
 
     // 登场：将手牌所有的攻击卡打出，打出后立刻返回手牌
-    // （登场效果不能打出无法被打出的卡：用游戏自身的 CanPlay 过滤）
+    // 使用自动打出的资格；CanPlay 还检查手动出牌资源，不适用于这里。
     public async Task DengChangSpecial(PlayerChoiceContext ctx, Player player)
     {
         var hand = PileType.Hand.GetPile(player).Cards
-            .Where(c => c.Type == CardType.Attack && c.CanPlay())
+            .Where(c => c.Type == CardType.Attack && !c.Keywords.Contains(CardKeyword.Unplayable))
             .ToList();
         if (hand.Count == 0) return;
 
@@ -84,6 +84,9 @@ public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChan
         foreach (var card in hand)
         {
             if (card.Pile?.Type != PileType.Hand) continue;
+            if (CombatManager.Instance.IsOverOrEnding) return;
+            if (!MegaCrit.Sts2.Core.Hooks.Hook.ShouldPlay(player.Creature.CombatState!, card,
+                out _, AutoPlayType.Default)) continue;
             Creature? target = player.RunState.Rng.CombatTargets.NextItem(player.Creature.CombatState!.HittableEnemies);
             if (target == null) return;
 
@@ -142,7 +145,8 @@ public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChan
             context: ctx,
             player: player,
             filter: null,
-            source: this)).ToList();
+            // 时机独立于普通打出，选择完成后立即恢复手牌节点。
+            source: null!)).ToList();
         foreach (var card in selected)
         {
             await CardCmd.Discard(ctx, card);

@@ -53,7 +53,7 @@ public class HeLuSiXianDaoHaBiCard : SelectSpecialBaseCard
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        HorusFreePlay.Consume(this);
+        HorusFreePlay.Consume(this, cardPlay);
         // 获得16点格挡
         await CreatureCmd.GainBlock(Owner.Creature, DynamicVars.Block.BaseValue, ValueProp.Move, cardPlay);
 

@@ -80,11 +80,14 @@ public class KeMoYongShengCard : SelectSpecialBaseCard, IShiJiCard
 
     public async Task ActivateShiJi(PlayerChoiceContext ctx, Player player)
     {
-        // 除外消耗堆的这张卡
-        await CardPileCmd.Add(this, Entry.ChuWaiPile);
-
         // 手牌的怪兽当融合素材（消耗），从额外堆取1只刻魔融合怪兽加入手牌
         await KeMoFusion.TryFusion(ctx, player, this, PickMonsterPrompt, PickMaterialPrompt,
-            KeMoFusion.PilePool(PileType.Hand), KeMoFusionDestination.Exhaust);
+            KeMoFusion.PilePool(PileType.Hand), KeMoFusionDestination.Exhaust,
+            payActivationCost: async () =>
+            {
+                if (Pile?.Type != PileType.Exhaust) return false;
+                await CardPileCmd.Add(this, Entry.ChuWaiPile);
+                return Pile?.Type == Entry.ChuWaiPile;
+            });
     }
 }

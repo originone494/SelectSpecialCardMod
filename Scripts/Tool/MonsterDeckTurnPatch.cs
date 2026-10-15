@@ -19,6 +19,7 @@ public static class MonsterDeckDrawPatch
     [HarmonyPostfix]
     static void After(Creature __instance)
     {
+        if (FeatureStatus.Checked && !FeatureStatus.MonsterDeck) return;
         if (!__instance.IsMonster || __instance.Side != CombatSide.Enemy) return;
         MonsterDeck.PrepareTurn(__instance);
     }
@@ -32,6 +33,7 @@ public static class MonsterDeckTurnPatch
     [HarmonyPriority(Priority.First)]
     static bool TakeOver(MoveState __instance, ref Task __result)
     {
+        if (FeatureStatus.Checked && !FeatureStatus.MonsterDeck) return true;
         // 重入守卫：怪物出牌时会直调原版 MoveState.PerformMove，那次必须放行跑原方法
         if (MonsterCardEffects.InPlay) return true;
 
@@ -43,20 +45,20 @@ public static class MonsterDeckTurnPatch
         // 原方法开头会置 _performedAtLeastOnce（状态机换招判据），跳过时必须手动补上
         Traverse.Create(__instance).Field("_performedAtLeastOnce").SetValue(true);
 
-        IntentCardFlySync.BeginPerformScope();
         __result = RunTurn(actor);
         return false;
     }
 
     private static async Task RunTurn(Creature actor)
     {
+        var scope = IntentCardFlySync.BeginPerformScope();
         try
         {
             await MonsterDeck.PlayTurn(actor);
         }
         finally
         {
-            IntentCardFlySync.EndPerformScope();
+            IntentCardFlySync.EndPerformScope(scope);
         }
     }
 }
@@ -70,6 +72,7 @@ public static class MonsterRollHoldPatch
     [HarmonyPrefix]
     static bool Prefix(MonsterModel __instance)
     {
+        if (FeatureStatus.Checked && !FeatureStatus.MonsterDeck) return true;
         try
         {
             return !MonsterDeck.ConsumeHold(__instance.Creature);

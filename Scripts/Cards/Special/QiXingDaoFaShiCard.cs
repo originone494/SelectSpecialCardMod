@@ -32,7 +32,7 @@ public class QiXingDaoFaShiCard : SelectSpecialBaseCard
         {
             if (card?.Owner == null) return 0m;
             if(PileType.Hand.GetPile(card.Owner).Cards.Where(c => c.EnergyCost.GetWithModifiers(CostModifiers.None) >= 2).ToList().Count()<=0) return 0m;
-            return PileType.Discard.GetPile(card.Owner).Cards.Select(c => c.Title).Distinct().Count();
+            return PileType.Discard.GetPile(card.Owner).Cards.Select(c => c.Id).Distinct().Count();
         }),
     ];
 
@@ -53,7 +53,7 @@ public class QiXingDaoFaShiCard : SelectSpecialBaseCard
         int down = DynamicVars.CalculationBase.IntValue;
 
         if (handCards.Count() > 0)
-            down = down + PileType.Discard.GetPile(Owner).Cards.Select(c => c.Title).Distinct().Count();
+            down = down + PileType.Discard.GetPile(Owner).Cards.Select(c => c.Id).Distinct().Count();
 
 
         await PowerCmd.Apply<QiXingDaoFaShiTempDownPower>(choiceContext, cardPlay.Target!, down, Owner.Creature, this);

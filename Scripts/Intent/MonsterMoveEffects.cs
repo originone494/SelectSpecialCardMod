@@ -54,7 +54,7 @@ internal static class MonsterText
 }
 
 // 一条「能力效果」：能力种类 + 层数。
-// Power 存 PowerModel 的类名（如 StrengthPower / VulnerablePower / DexterityPower …）——
+// 新观测存完整 ModelId；静态表兼容 PowerModel 的类名（如 StrengthPower / VulnerablePower / DexterityPower …）——
 // 强化不一定是力量、削弱不一定是虚弱，所以能力种类必须照搬，不能写死。
 internal readonly struct PowerEffect
 {
@@ -73,6 +73,7 @@ internal readonly struct PowerEffect
 // 调用方按 观测 → 静态表 → 占位值 的顺序取用；数值 0 / 空列表表示没有值（退回占位值）。
 internal sealed class MonsterMoveEffects
 {
+    internal bool BlockKnown, HealKnown, SelfKnown, PlayerKnown, SummonsKnown;
     internal int Block;
     internal int Heal;
     internal readonly List<PowerEffect> SelfPowers = new();    // 怪物给自己加的能力（强化）
@@ -88,7 +89,9 @@ internal sealed class MonsterMoveEffects
         (string Power, int Amount)[]? playerPowers = null,
         (string MonsterKind, int MaxHp)[]? summoned = null)
     {
-        var fx = new MonsterMoveEffects { Block = block, Heal = heal };
+        var fx = new MonsterMoveEffects { Block = block, Heal = heal,
+            BlockKnown = true, HealKnown = true, SelfKnown = selfPowers != null,
+            PlayerKnown = playerPowers != null, SummonsKnown = summoned != null };
         if (selfPowers != null)
             foreach (var (power, amount) in selfPowers) fx.SelfPowers.Add(new PowerEffect(power, amount));
         if (playerPowers != null)
@@ -98,26 +101,31 @@ internal sealed class MonsterMoveEffects
         return fx;
     }
 
-    // 逐字段合并：观测值优先（数值 >0 / 列表非空），否则用静态表；两者都没有就保持 0 / 空。
+    // 已知观测值（包括合法 0 和空列表）优先；未知字段使用静态表。
     // 结算与卡面描述都走这一份逻辑，保证"看到的 = 打出的"。
     internal static MonsterMoveEffects Merge(MonsterMoveEffects? observed, MonsterMoveEffects? fromTable)
     {
         var fx = new MonsterMoveEffects
         {
-            Block = observed is { Block: > 0 } ? observed.Block : (fromTable?.Block ?? 0),
-            Heal = observed is { Heal: > 0 } ? observed.Heal : (fromTable?.Heal ?? 0),
+            Block = observed is { BlockKnown: true } ? observed.Block : (fromTable?.Block ?? 0),
+            Heal = observed is { HealKnown: true } ? observed.Heal : (fromTable?.Heal ?? 0),
+            BlockKnown = observed?.BlockKnown == true || fromTable?.BlockKnown == true,
+            HealKnown = observed?.HealKnown == true || fromTable?.HealKnown == true,
+            SelfKnown = observed?.SelfKnown == true || fromTable?.SelfKnown == true,
+            PlayerKnown = observed?.PlayerKnown == true || fromTable?.PlayerKnown == true,
+            SummonsKnown = observed?.SummonsKnown == true || fromTable?.SummonsKnown == true,
         };
-        MergeList(fx.SelfPowers, observed?.SelfPowers, fromTable?.SelfPowers);
-        MergeList(fx.PlayerPowers, observed?.PlayerPowers, fromTable?.PlayerPowers);
-        MergeList(fx.SummonedMonsters, observed?.SummonedMonsters, fromTable?.SummonedMonsters);
+        MergeList(fx.SelfPowers, observed?.SelfPowers, fromTable?.SelfPowers, observed?.SelfKnown == true);
+        MergeList(fx.PlayerPowers, observed?.PlayerPowers, fromTable?.PlayerPowers, observed?.PlayerKnown == true);
+        MergeList(fx.SummonedMonsters, observed?.SummonedMonsters, fromTable?.SummonedMonsters, observed?.SummonsKnown == true);
         fx.SealJunk = !string.IsNullOrEmpty(observed?.SealJunk)
             ? observed!.SealJunk
             : (fromTable?.SealJunk ?? "");
         return fx;
 
-        static void MergeList<T>(List<T> into, List<T>? a, List<T>? b)
+        static void MergeList<T>(List<T> into, List<T>? a, List<T>? b, bool known)
         {
-            var src = a is { Count: > 0 } ? a : b;
+            var src = known ? a : b;
             if (src != null) into.AddRange(src);
         }
     }
@@ -136,7 +144,7 @@ internal static class MonsterPowerLookup
         PowerModel? found = null;
         foreach (var power in ModelDb.AllPowers)
         {
-            if (power.GetType().Name == className)
+            if (power.Id.ToString() == className || power.GetType().Name == className)
             {
                 found = power;
                 break;

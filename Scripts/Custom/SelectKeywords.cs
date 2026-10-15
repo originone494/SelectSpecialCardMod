@@ -28,8 +28,9 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 [RegisterOwnedCardKeyword(nameof(Xing3), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(Xing4), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(TiaoZheng), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
-[RegisterOwnedCardKeyword(nameof(ChuWai), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(ChuWai), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.AfterCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ExtraMonster), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(ChaoLiang), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
 [RegisterOwnedCardKeyword(nameof(GuangEMo), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(Link2), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(Link1), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
@@ -58,8 +59,20 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 [RegisterOwnedCardKeyword(nameof(ZhuLeiXiaJiGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ZhuLeiRongHe), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(JuShe), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YiXiangMing), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YiXiangMingGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YiXiangMingMoFa), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YiXiangMingXianJing), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(LingBai), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(LingBaiEffect), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(LingBaiQu), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
+// 刻度只通过悬停提示说明，不向卡面描述追加文本。
+[RegisterOwnedCardKeyword(nameof(KeDu3), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
+[RegisterOwnedCardKeyword(nameof(KeDu5), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
 public class SelectKeywords
 {
+    public static readonly CardKeyword ChaoLiang = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ChaoLiang)).GetModCardKeyword();
+
     // 「检索」：从某一卡池中将若干张牌加入手牌
     public static readonly CardKeyword Retriever = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(Retriever)).GetModCardKeyword();
 
@@ -113,7 +126,7 @@ public class SelectKeywords
     // 「调整」：调整怪兽
     public static readonly CardKeyword TiaoZheng = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(TiaoZheng)).GetModCardKeyword();
 
-    // 「除外」：移出战斗（参考原版「消耗」的描述风格）
+    // 「除外」：打出后进入除外堆，通用落堆行为见 ChuWaiKeywordPatch。
     public static readonly CardKeyword ChuWai = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ChuWai)).GetModCardKeyword();
 
     // 「额外怪兽」：描述留空
@@ -183,4 +196,15 @@ public class SelectKeywords
 
     // 「俱舍」：珠泪·俱舍 的代码标记
     public static readonly CardKeyword JuShe = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(JuShe)).GetModCardKeyword();
+    public static readonly CardKeyword YiXiangMing = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YiXiangMing)).GetModCardKeyword();
+    public static readonly CardKeyword YiXiangMingGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YiXiangMingGuaiShou)).GetModCardKeyword();
+    public static readonly CardKeyword YiXiangMingMoFa = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YiXiangMingMoFa)).GetModCardKeyword();
+    public static readonly CardKeyword YiXiangMingXianJing = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YiXiangMingXianJing)).GetModCardKeyword();
+    // 显示名称为「灵摆怪兽」；保留原 ID 和别名供旧卡引用。
+    public static readonly CardKeyword LingBaiGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(LingBai)).GetModCardKeyword();
+    public static readonly CardKeyword LingBai = LingBaiGuaiShou;
+    public static readonly CardKeyword LingBaiEffect = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(LingBaiEffect)).GetModCardKeyword();
+    public static readonly CardKeyword LingBaiQu = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(LingBaiQu)).GetModCardKeyword();
+    public static readonly CardKeyword KeDu3 = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(KeDu3)).GetModCardKeyword();
+    public static readonly CardKeyword KeDu5 = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(KeDu5)).GetModCardKeyword();
 }

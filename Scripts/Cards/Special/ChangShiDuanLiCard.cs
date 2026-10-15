@@ -15,8 +15,7 @@ using SelectSpecialCardMod.Scripts.Custom;
 
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
-// 常世断离：从消耗堆选择5张卡除外（移入除外堆），从除外堆选择5张卡消耗（移入消耗堆）。
-// 不足 5 张时全选；两段选择都需要玩家手动确认。
+// 常世断离：两段分别选择最多5张，均可不选；第一段为空不影响第二段。
 public class ChangShiDuanLiCard : SelectSpecialBaseCard
 {
     public ChangShiDuanLiCard() : base(0, CardType.Skill, CardRarity.Ancient, TargetType.Self)
@@ -39,24 +38,21 @@ public class ChangShiDuanLiCard : SelectSpecialBaseCard
     {
         if (Owner == null) return;
 
-        // ① 从消耗堆选择5张卡除外（不足5张则全选）
+        // ① 从消耗堆选择最多5张卡除外。
         var exhaustPile = PileType.Exhaust.GetPile(Owner);
-        if (exhaustPile == null || exhaustPile.Cards.Count == 0) return;
-
-        int n = Math.Min(Count, exhaustPile.Cards.Count);
-        var exiled = (await CardSelectCmd.FromCombatPile(
-            choiceContext,
-            exhaustPile,
-            Owner,
-            new CardSelectorPrefs(ChuWaiPrompt, n, n) { RequireManualConfirmation = true })).ToList();
-        if (exiled.Count == 0) return;
-
-        foreach (var card in exiled)
+        if (exhaustPile.Cards.Count > 0)
         {
-            await CardPileCmd.Add(card, Entry.ChuWaiPile);
+            int n = Math.Min(Count, exhaustPile.Cards.Count);
+            var exiled = (await CardSelectCmd.FromCombatPile(
+                choiceContext,
+                exhaustPile,
+                Owner,
+                new CardSelectorPrefs(ChuWaiPrompt, 0, n) { RequireManualConfirmation = true })).ToList();
+            foreach (var card in exiled)
+                await CardPileCmd.Add(card, Entry.ChuWaiPile);
         }
 
-        // ② 从除外堆选择5张卡消耗（不足5张则全选）
+        // ② 从除外堆选择最多5张卡送入消耗堆。
         var chuWaiPile = Entry.ChuWaiPile.GetPile(Owner);
         if (chuWaiPile == null || chuWaiPile.Cards.Count == 0) return;
 
@@ -65,7 +61,7 @@ public class ChangShiDuanLiCard : SelectSpecialBaseCard
             choiceContext,
             chuWaiPile,
             Owner,
-            new CardSelectorPrefs(ConsumePrompt, m, m) { RequireManualConfirmation = true })).ToList();
+            new CardSelectorPrefs(ConsumePrompt, 0, m) { RequireManualConfirmation = true })).ToList();
 
         foreach (var card in consumed)
         {

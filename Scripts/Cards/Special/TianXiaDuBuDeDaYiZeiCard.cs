@@ -72,10 +72,15 @@ public class TianXiaDuBuDeDaYiZeiCard : SelectSpecialBaseCard, ISpecialEffectCar
         => Minions(player).Count > 0 || OtherAttackCards(player).Count >= 2;
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+        => await TryActivateSpecialEffect(choiceContext, player);
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
+        if (!CanActivateSpecialEffect(player)) return false;
         var minions = Minions(player);
         if (minions.Count > 0)
         {
+            SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
             // 杀死所有「爪牙」
             foreach (var minion in minions)
             {
@@ -91,16 +96,19 @@ public class TianXiaDuBuDeDaYiZeiCard : SelectSpecialBaseCard, ISpecialEffectCar
                 player: player,
                 filter: c => c != this && c.Type == CardType.Attack,
                 source: this)).ToList();
-            if (selected.Count < 2) return;
+            if (selected.Count != 2 || selected.Any(c => c.Pile?.Type != PileType.Hand)) return false;
 
+            SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
             foreach (var card in selected)
             {
                 await CardCmd.Exhaust(choiceContext, card);
+                if (card.Pile?.Type != PileType.Exhaust) return false;
             }
         }
 
         // 这张卡在这个回合可以免费打出
         EnergyCost.SetThisTurn(0);
+        return true;
     }
 
     // 在受到攻击前：将弃牌堆的这张卡返回抽牌堆，获得16点格挡

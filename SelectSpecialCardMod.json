@@ -3,14 +3,14 @@
 	"name": "SelectSpecialCardMod",
 	"author": "不知道叫什么",
 	"description": "游戏王卡牌扩展模组。",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"min_game_version": "0.111.0",
 	"has_pck": true,
 	"has_dll": true,
 	"dependencies": [
 		{
 			"id": "STS2-RitsuLib",
-			"min_version": "0.4.30"
+			"min_version": "0.6.7"
 		}
 	],
 	"affects_gameplay": true

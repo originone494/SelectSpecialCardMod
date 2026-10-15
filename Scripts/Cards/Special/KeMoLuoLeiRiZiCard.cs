@@ -42,7 +42,6 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.ExtraMonster,
         SelectTags.GuangEMo,
-        SelectTags.Link2,
         SelectTags.KeMoGuaiShou,
         SelectTags.KeMo,
         SelectTags.RongHeGuaiShou,
@@ -55,7 +54,6 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),
-        HoverTipFactory.FromKeyword(SelectKeywords.Link2),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
         HoverTipFactory.FromKeyword(SelectKeywords.RongHeGuaiShou),
@@ -84,7 +82,27 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
     // 记录**实际被扣了力量**的敌人。离开手牌时只把记录里的敌人恢复，
     // 而不是"给当时还活着的所有敌人 +6"——后者在"某只敌人这次没被扣（例如被人工制品挡下）"
     // 或"新敌人是在其它时点入场"的情况下会把力量错误地加上去。
-    private readonly HashSet<Creature> _zhuChangReduced = [];
+    private Dictionary<Creature, int> _zhuChangReduced = [];
+    private HashSet<Creature> _zhuChangAttempted = [];
+    private CombatId? _zhuChangCombat;
+
+    private void EnsureZhuChangCombat()
+    {
+        var current = CombatManager.Instance.CurrentCombatId;
+        if (_zhuChangCombat == current) return;
+        _zhuChangReduced.Clear();
+        _zhuChangAttempted.Clear();
+        _zhuChangCombat = current;
+    }
+
+    protected override void AfterCloned()
+    {
+        base.AfterCloned();
+        // CardModel 使用浅克隆，驻场账本必须属于新实例。
+        _zhuChangReduced = [];
+        _zhuChangAttempted = [];
+        _zhuChangCombat = null;
+    }
 
     // 这张卡进出「手牌」时：进手牌 → 给所有敌人 -6 力量；离开手牌 → 把记录里的敌人恢复
     public override async Task AfterCardChangedPiles(CardModel card, PileType oldPileType, AbstractModel? clonedBy)
@@ -92,6 +110,7 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
         await base.AfterCardChangedPiles(card, oldPileType, clonedBy);
         if (card != this) return;
         if (CombatState == null) return;
+        EnsureZhuChangCombat();
 
         bool nowHand = Pile?.Type == PileType.Hand;
         bool wasHand = oldPileType == PileType.Hand;
@@ -100,7 +119,11 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
         var ctx = new BlockingPlayerChoiceContext();
         if (nowHand)
         {
-            foreach (var enemy in CombatState.HittableEnemies.ToList())
+            var targets = CombatState.HittableEnemies.Where(e => !_zhuChangAttempted.Contains(e)).ToList();
+            if (targets.Count == 0) return;
+            if (!await ZhuChangEffectVfx.Play(this, card)) return;
+            if (CombatState == null || Pile?.Type != PileType.Hand) return;
+            foreach (var enemy in targets.Where(e => e.IsAlive && CombatState.HittableEnemies.Contains(e)))
             {
                 await ReduceStrength(ctx, enemy);
             }
@@ -117,27 +140,37 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
         await base.AfterCreatureAddedToCombat(creature);
         if (Pile?.Type != PileType.Hand) return;
         if (CombatState == null) return;
+        EnsureZhuChangCombat();
         if (!creature.IsMonster) return;
 
+        if (_zhuChangAttempted.Contains(creature) || !CombatState.HittableEnemies.Contains(creature)) return;
+        if (!await ZhuChangEffectVfx.Play(this, creature)) return;
+        if (CombatState == null || Pile?.Type != PileType.Hand
+            || !CombatState.HittableEnemies.Contains(creature)) return;
         await ReduceStrength(new BlockingPlayerChoiceContext(), creature);
     }
 
     private async Task ReduceStrength(PlayerChoiceContext ctx, Creature enemy)
     {
-        var applied = await PowerCmd.Apply<StrengthPower>(ctx, enemy, -ZhuChangStrengthDown, Owner?.Creature, this);
-        if (applied != null) _zhuChangReduced.Add(enemy);   // 真的扣到了才记
+        if (!_zhuChangAttempted.Add(enemy)) return;
+        int before = enemy.GetPower<StrengthPower>()?.Amount ?? 0;
+        try { await PowerCmd.Apply<StrengthPower>(ctx, enemy, -ZhuChangStrengthDown, Owner?.Creature, this); }
+        catch { _zhuChangAttempted.Remove(enemy); throw; }
+        int reduced = before - (enemy.GetPower<StrengthPower>()?.Amount ?? 0);
+        // 返回值为空也可能是力量恰好降到 0；按实际变化记账。
+        if (reduced > 0) _zhuChangReduced[enemy] = reduced;
     }
 
     private async Task RestoreStrength(PlayerChoiceContext ctx)
     {
-        foreach (var enemy in _zhuChangReduced.ToList())
-        {
-            if (enemy != null && enemy.IsAlive)
-            {
-                await PowerCmd.Apply<StrengthPower>(ctx, enemy, ZhuChangStrengthDown, Owner?.Creature, this);
-            }
-        }
+        var reductions = _zhuChangReduced.ToList();
         _zhuChangReduced.Clear();
+        _zhuChangAttempted.Clear();
+        foreach (var (enemy, amount) in reductions)
+        {
+            if (enemy.IsAlive)
+                await PowerCmd.Apply<StrengthPower>(ctx, enemy, amount, Owner?.Creature, this);
+        }
     }
 
     // 登场：从消耗堆·除外堆将1张「光恶魔」加入手牌（是/否）
@@ -168,24 +201,23 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
         if (CombatState == null) return;
 
         var exhaustPile = PileType.Exhaust.GetPile(Owner);
-        if (exhaustPile.Cards.Any(c => c != this && IsGuangEMo(c)))
-        {
-            var picked = (await CardSelectCmd.FromCombatPile(
-                choiceContext,
-                exhaustPile,
-                Owner,
-                CardPrefs(this, XiaoHaoPrompt, 1, 1),
-                filter: c => c != this && IsGuangEMo(c))).FirstOrDefault();
+        if (!exhaustPile.Cards.Any(c => c != this && IsGuangEMo(c))) return;
+        var picked = (await CardSelectCmd.FromCombatPile(
+            choiceContext, exhaustPile, Owner, CardPrefs(this, XiaoHaoPrompt, 1, 1),
+            filter: c => c != this && IsGuangEMo(c))).FirstOrDefault();
+        if (picked == null || picked.Pile?.Type != PileType.Exhaust) return;
 
-            if (picked != null)
-            {
-                // 额外怪兽 → 额外堆；其他的卡 → 抽牌堆
-                if (picked.Tags.Contains(SelectTags.ExtraMonster))
-                    await ExtraDeckSeries.ReturnExtraMonster(Owner, picked);
-                else
-                    await SelectToolCmd.ReturnCardToPile(picked, PileType.Draw);
-            }
+        // 必须成功返回一张光恶魔，才继续造成群体伤害。
+        if (picked.Tags.Contains(SelectTags.ExtraMonster))
+        {
+            if (!await ExtraDeckSeries.ReturnExtraMonster(Owner, picked)) return;
         }
+        else
+        {
+            await SelectToolCmd.ReturnCardToPile(picked, PileType.Draw);
+            if (picked.Pile?.Type != PileType.Draw) return;
+        }
+        if (CombatManager.Instance.IsOverOrEnding || CombatState == null) return;
 
         // 对所有敌人造成12点伤害
         var enemies = CombatState.HittableEnemies.ToList();

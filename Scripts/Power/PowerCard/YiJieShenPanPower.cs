@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
@@ -24,6 +25,15 @@ namespace SelectSpecialCardMod.Scripts.Power;
 [RegisterPower]
 public class YiJieShenPanPower : SelectSpecialBasePower
 {
+    private sealed class PendingTrigger { }
+    private ConditionalWeakTable<CardPlay, PendingTrigger> _pendingTriggers = new();
+
+    protected override void AfterCloned()
+    {
+        base.AfterCloned();
+        _pendingTriggers = new();
+    }
+
     public override PowerType Type => PowerType.Buff;
     public override PowerStackType StackType => PowerStackType.Single;
 
@@ -44,16 +54,28 @@ public class YiJieShenPanPower : SelectSpecialBasePower
         await CardPileCmd.Add(card, PileType.Hand);
     }
 
-    // 效果2：打出「异解」卡时，若抽牌堆数量为0，所有敌人在本回合失去99点力量
+    // 开始时记录本次打出的资格；嵌套打出分别记录，未完成的打出不长期持有引用。
+    public override Task BeforeCardPlayed(CardPlay cardPlay)
+    {
+        _pendingTriggers.Remove(cardPlay);
+        if (Owner.IsPlayer && cardPlay.Card is { } card && card.Owner == Owner.Player
+            && card.Tags.Contains(SelectTags.YiJie)
+            && PileType.Draw.GetPile(Owner.Player!).Cards.Count == 0)
+        {
+            _pendingTriggers.Add(cardPlay, new PendingTrigger());
+        }
+        return Task.CompletedTask;
+    }
+
+    // 效果2：按打出开始时的资格结算，不重新读取已被卡牌效果改变的抽牌堆。
     public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        if (!Owner.IsPlayer) return;
-        if (cardPlay.Card == null) return;
-        if (!cardPlay.Card.Tags.Contains(SelectTags.YiJie)) return;
+        if (!_pendingTriggers.TryGetValue(cardPlay, out _)) return;
+        _pendingTriggers.Remove(cardPlay);
+        if (!Owner.IsPlayer || cardPlay.Card?.Owner != Owner.Player
+            || Owner.CombatState is not { } combatState) return;
 
-        if (PileType.Draw.GetPile(Owner.Player!).Cards.Count != 0) return;
-
-        foreach (var enemy in Owner.CombatState!.HittableEnemies)
+        foreach (var enemy in combatState.HittableEnemies)
         {
             await PowerCmd.Apply<YiJieShenPanTempDownPower>(choiceContext, enemy, 99m, Owner, null);
         }

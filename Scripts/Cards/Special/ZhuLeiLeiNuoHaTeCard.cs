@@ -72,7 +72,7 @@ public class ZhuLeiLeiNuoHaTeCard : SelectSpecialBaseCard, ISongMuCard
     public async Task SongMuSpecial(PlayerChoiceContext ctx, Player player)
     {
         // ① 同名卡一回合一次
-        string onceKey = PerTurnOnce.Key("SongMu", Id.Entry);
+        string onceKey = PerTurnOnce.Key("SongMu", Id.ToString());
         if (PerTurnOnce.IsUsed(player, onceKey)) return;
 
         // ② 条件：手牌有「珠泪」卡（任意珠泪卡，含融合怪兽）

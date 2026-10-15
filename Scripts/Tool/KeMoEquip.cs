@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Godot;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Commands;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Audio.Debug;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -15,6 +16,7 @@ using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Vfx.Cards;
 using MegaCrit.Sts2.Core.Saves;
@@ -76,19 +78,32 @@ public class KeMoEquipCapability : UntilCombatEndCapability<CardModel>, ICardDes
 
     protected override void OnDetach(CardModel card) => KeMoEquip.Unregister(this);
 
-    // 被装备的卡「离开手牌」→ 挂在它身上的装备卡会被消耗。
-    // 打出这张卡时等这一击结算完再消耗（AfterCardPlayed），好让这一击吃到装备加成。
+    // 进入弃牌堆（包括打出后的落堆）保留装备，洗牌与再次回手也保留。
+    // 其他离手/离场仍消耗装备；非弃牌去向的打出在 AfterCardPlayed 结算完再消耗。
     public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
         if (Owner == null || cardPlay.Card != Owner) return;
+        if (Owner.Pile?.Type == PileType.Discard) return;
+        // 原版此时通常还在 Play；实际进堆前不能提前消耗将保留的装备。
+        if (Owner.Pile?.Type == PileType.Play && cardPlay.ResultPile == PileType.Discard) return;
         await KeMoEquip.ConsumeAllEquipments(new BlockingPlayerChoiceContext(), Owner);
     }
 
     public override async Task AfterCardChangedPiles(CardModel card, PileType oldPileType, AbstractModel? clonedBy)
     {
         if (Owner == null || card != Owner) return;
-        if (oldPileType != PileType.Hand) return;
-        if (Owner.Pile?.Type == PileType.Play) return;   // 打出交给 AfterCardPlayed 那条
+        var destination = Owner.Pile?.Type;
+        if (destination == PileType.Discard || destination == PileType.Play) return;
+        if ((oldPileType == PileType.Discard || oldPileType == PileType.Draw)
+            && (destination == PileType.Draw || destination == PileType.Hand))
+        {
+            // 重新抽回/回收到手牌时重新计算装备加伤的卡面预览。
+            if (destination == PileType.Hand) KeMoEquip.RefreshEquipmentPreview(Owner);
+            return;
+        }
+        // 包含此前留在弃牌堆/抽牌堆的宿主被消耗、除外或移出战斗。
+        if (oldPileType != PileType.Hand && oldPileType != PileType.Play
+            && oldPileType != PileType.Discard && oldPileType != PileType.Draw) return;
         await KeMoEquip.ConsumeAllEquipments(new BlockingPlayerChoiceContext(), Owner);
     }
 
@@ -116,13 +131,14 @@ public static class KeMoEquip
     // 组件 → 它的"装备卡本体"（运行时表，不参与存档；组件卸下时自动清理）
     private static readonly Dictionary<KeMoEquipCapability, CardModel> EquipCards = new();
 
+    public static void Reset() => EquipCards.Clear();
     internal static void Unregister(KeMoEquipCapability cap) => EquipCards.Remove(cap);
 
     /// <summary>「装备堆」里当前躺着的装备卡本体。</summary>
     public static List<CardModel> EquipmentCards(Player player)
         => Entry.EquipPile.GetPile(player)?.Cards.ToList() ?? [];
 
-    /// <summary>把一张卡身上所有装备都消耗掉（被装备的卡离开手牌时用）。</summary>
+    /// <summary>把一张卡身上所有装备都消耗掉（非保留去向的离手/离场时用）。</summary>
     public static async Task ConsumeAllEquipments(PlayerChoiceContext ctx, CardModel target)
     {
         foreach (var cap in target.Capabilities().All.OfType<KeMoEquipCapability>().ToList())
@@ -137,34 +153,52 @@ public static class KeMoEquip
                 cap.RemoveFromOwner();
             }
         }
+        RefreshEquipmentPreview(target);
+    }
+
+    /// <summary>选择完成后先统一卸下作为素材的装备，避免宿主离手时提前消耗它们。</summary>
+    public static void DetachMaterialEquipment(CardModel card)
+    {
+        var caps = EquipCards.Where(kv => kv.Value == card).Select(kv => kv.Key).ToList();
+        var targets = caps.Select(cap => cap.Owner).OfType<CardModel>().Distinct().ToList();
+        foreach (var cap in caps)
+            cap.RemoveFromOwner();
+        foreach (var target in targets) RefreshEquipmentPreview(target);
     }
 
     /// <summary>把一张卡当融合素材消耗掉：如果它正作为装备挂在别人身上，先卸掉那个组件。</summary>
-    public static async Task ExhaustMaterial(PlayerChoiceContext ctx, CardModel card)
+    public static async Task<bool> ExhaustMaterial(PlayerChoiceContext ctx, CardModel card)
     {
-        var cap = EquipCards.FirstOrDefault(kv => kv.Value == card).Key;
-        cap?.RemoveFromOwner();
+        if (card.HasBeenRemovedFromState) return false;
+        DetachMaterialEquipment(card);
+        // 其他素材的消耗连锁已经支付了这张卡时，不重复广播消耗事件。
+        if (card.Pile?.Type == PileType.Exhaust) return true;
 
-        if (card.Pile?.Type == Entry.EquipPile)
-        {
-            await ExhaustEquipment(ctx, card);
-            return;
-        }
-        await CardCmd.Exhaust(ctx, card);
+        var result = card.Pile?.Type == Entry.EquipPile
+            ? await ExhaustEquipment(ctx, card)
+            : await CardCmd.Exhaust(ctx, card);
+        return result?.success == true;
     }
 
     // 装备卡本体躺在「装备堆」（无界面牌堆），原版消耗特效没地方播。
     // 统一走 SelectToolCmd.ExhaustWithVfx：在固定的手牌区位置播一次原版消耗特效，再静默入堆。
-    public static async Task ExhaustEquipment(PlayerChoiceContext ctx, CardModel equipCard)
+    public static async Task<CardPileAddResult?> ExhaustEquipment(PlayerChoiceContext ctx, CardModel equipCard)
         => await SelectToolCmd.ExhaustWithVfx(ctx, equipCard);
 
     // 选装备目标的提示（{CardName} 由调用方注入）
     private static LocString EquipPrompt { get; } =
         new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_EQUIP");
 
-    // 「连接怪兽」= 带任何 Link 标签的卡。以后新增 Link 标签（Link3…）加到这里即可。
-    public static bool IsLinkMonster(CardModel card)
-        => card.Tags.Contains(SelectTags.Link1) || card.Tags.Contains(SelectTags.Link2);
+    /// <summary>连接等级；非连接怪兽为 0。连接识别和素材计数共用此定义。</summary>
+    public static int LinkRating(CardModel card)
+    {
+        if (card.Tags.Contains(SelectTags.Link3)) return 3;
+        if (card.Tags.Contains(SelectTags.Link2)) return 2;
+        if (card.Tags.Contains(SelectTags.Link1)) return 1;
+        return 0;
+    }
+
+    public static bool IsLinkMonster(CardModel card) => LinkRating(card) > 0;
 
     // 能当装备目标：带「光恶魔」且不是连接怪兽
     public static bool CanEquipTo(CardModel card)
@@ -187,11 +221,12 @@ public static class KeMoEquip
         var prompt = new LocString(EquipPrompt.LocTable, EquipPrompt.LocEntryKey);
         prompt.Add("CardName", source.Title);
         var picked = (await CardSelectCmd.FromHand(
-            prefs: new CardSelectorPrefs(prompt, 1, 1),
+            prefs: new CardSelectorPrefs(prompt, 1, 1) { RequireManualConfirmation = true },
             context: ctx,
             player: player,
             filter: CanEquipTo,
-            source: source)).FirstOrDefault();
+            // 装备目标仍留在手牌，选择结束时立即恢复卡面，不等待装备卡的打出通知。
+            source: null!)).FirstOrDefault();
         if (picked == null) return;
 
         await EquipTo(equipCard, picked, linkRating, doubleVsBlock);
@@ -213,7 +248,51 @@ public static class KeMoEquip
         EquipCards[cap] = equipCard;
 
         // 装备卡本体离开消耗堆 → 「装备堆」（静默入堆，演出由上面的飞行负责）
-        await CardPileCmd.Add(equipCard, Entry.EquipPile, CardPilePosition.Bottom, null, skipVisuals: true);
+        CardPileAddResult result;
+        try
+        {
+            result = await CardPileCmd.Add(equipCard, Entry.EquipPile, CardPilePosition.Bottom, null, skipVisuals: true);
+            if (!result.success || equipCard.Pile?.Type != Entry.EquipPile)
+                throw new InvalidOperationException("Equipment card did not enter the equipment pile.");
+        }
+        catch
+        {
+            cap.RemoveFromOwner();
+            RefreshEquipmentPreview(target);
+            throw;
+        }
+        // 显示层失败不能撤销已经完成的装备移动与伤害组件。
+        CompleteSilentEquipmentMove(result);
+        RefreshEquipmentPreview(target);
+    }
+
+    internal static void RefreshEquipmentPreview(CardModel target)
+    {
+        if (target.HasBeenRemovedFromState || target.Pile?.Type != PileType.Hand) return;
+        // 只重新计算预览，保留基础伤害；实际伤害仍由同一套原版/组件钩子计算。
+        target.DynamicVars.ClearPreview();
+        target.UpdateDynamicVarPreview(CardPreviewMode.Normal, target.CurrentTarget, target.DynamicVars);
+        var node = NCard.FindOnTable(target, PileType.Hand);
+        if (node != null && GodotObject.IsInstanceValid(node)) node.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
+    }
+
+    internal static void CompleteSilentEquipmentMove(CardPileAddResult result)
+    {
+        if (!result.success || result.cardAdded.Pile?.Type != Entry.EquipPile) return;
+        var oldPile = result.oldPile;
+        if (oldPile == null || ReferenceEquals(result.cardAdded.Pile, oldPile)) return;
+        // skipVisuals 同时抑制了来源牌堆的移除通知；自定义飞行不会补发它们。
+        oldPile.InvokeCardRemoved(result.cardAdded);
+        oldPile.InvokeCardRemoveFinished();
+        oldPile.InvokeContentsChanged();
+
+        if (oldPile.Type != PileType.Hand || !LocalContext.IsMe(result.cardAdded.Owner)) return;
+        var hand = NPlayerHand.Instance;
+        var holder = hand?.GetCardHolder(result.cardAdded);
+        if (holder == null) return;
+        var node = holder.CardNode;
+        hand!.Remove(result.cardAdded);
+        if (node != null && GodotObject.IsInstanceValid(node)) node.QueueFreeSafely();
     }
 
     // 装备飞行演出：造一张卡面副本，从"装备卡现在的位置"飞到"被装备的那张卡"的位置，然后收掉。

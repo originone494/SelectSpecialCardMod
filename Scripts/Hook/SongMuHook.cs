@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -37,11 +38,15 @@ public static class SongMuHook
 {
     // 连锁深度上限：正常构筑 3~5 层，这里只是防极端循环（A 被丢弃→触发丢弃 B→B 又触发…）的安全阀
     private const int MaxChainDepth = 32;
-    private static int _chainDepth;
+    private static readonly AsyncLocal<int> ChainDepth = new();
 
-    // 「延迟结算」窗口深度。>0 时所有送墓触发先记账（见 DeferTriggers），不立即执行。
-    private static int _deferDepth;
-    private static readonly List<(PlayerChoiceContext ctx, CardModel card)> _deferred = new();
+    private sealed class DeferredWindow
+    {
+        public List<(PlayerChoiceContext Context, CardModel Card)> Pending { get; } = [];
+    }
+
+    // 每个异步结算链独立捕获事件；嵌套堆墓不能清空外层尚未处理的事件。
+    private static readonly AsyncLocal<DeferredWindow?> Deferred = new();
 
     // 由卡牌基类的 AfterCardDiscarded 调用，card == 被丢弃的那张卡
     public static async Task OnCardDiscarded(PlayerChoiceContext ctx, CardModel card)
@@ -53,9 +58,9 @@ public static class SongMuHook
         if (CombatManager.Instance.IsOverOrEnding) return;
 
         // 处于延迟窗口（如整堆送墓）时先记账，窗口结束后再按被丢弃的先后顺序逐一触发。
-        if (_deferDepth > 0)
+        if (Deferred.Value is { } window)
         {
-            _deferred.Add((ctx, card));
+            window.Pending.Add((ctx, card));
             return;
         }
 
@@ -70,52 +75,39 @@ public static class SongMuHook
     /// </summary>
     public static async Task DeferTriggers(Func<Task> body)
     {
-        _deferDepth++;
+        var parent = Deferred.Value;
+        var window = new DeferredWindow();
+        Deferred.Value = window;
         try
         {
             await body();
         }
-        catch
-        {
-            _deferDepth--;
-            if (_deferDepth == 0) _deferred.Clear();
-            throw;
-        }
-        _deferDepth--;
-
-        if (_deferDepth > 0) return; // 仍有外层窗口，交给它结算
-
-        await DrainDeferred();
-    }
-
-    private static async Task DrainDeferred()
-    {
-        try
-        {
-            while (_deferred.Count > 0)
-            {
-                var (ctx, card) = _deferred[0];
-                _deferred.RemoveAt(0);
-                if (CombatManager.Instance.IsOverOrEnding) break;
-                if (card.Owner is not { } player) continue;
-                await Trigger(ctx, card, player);
-            }
-        }
         finally
         {
-            _deferred.Clear();
+            Deferred.Value = parent;
+        }
+
+        if (parent != null)
+        {
+            parent.Pending.AddRange(window.Pending);
+            return;
+        }
+        foreach (var (ctx, card) in window.Pending)
+        {
+            if (CombatManager.Instance.IsOverOrEnding) break;
+            if (card.Owner is { } player) await Trigger(ctx, card, player);
         }
     }
 
     private static async Task Trigger(PlayerChoiceContext ctx, CardModel card, Player player)
     {
-        if (_chainDepth >= MaxChainDepth)
+        if (ChainDepth.Value >= MaxChainDepth)
         {
             Log.Warn($"[SelectSpecialCardMod] 送墓连锁已达 {MaxChainDepth} 层，停止继续触发：{card.Id}");
             return;
         }
 
-        _chainDepth++;
+        ChainDepth.Value++;
         try
         {
             if (card is ISongMuCard self)
@@ -132,7 +124,7 @@ public static class SongMuHook
         }
         finally
         {
-            _chainDepth--;
+            ChainDepth.Value--;
         }
     }
 
@@ -166,10 +158,10 @@ public static class SongMuHook
     // 已在牌堆里的卡必须先自己搬——与官方 CardPileCmd.AutoPlayFromDrawPile 同款做法。
     public static async Task AutoPlayFromDiscard(PlayerChoiceContext ctx, CardModel card, Creature? target, bool exhaustOnPlay = false)
     {
-        if (card.Pile?.Type == PileType.Discard)
-        {
-            await CardPileCmd.Add(card, PileType.Play);
-        }
+        // 该送墓事件排队期间可能已被用作素材或回收，不从新的牌堆擅自打出。
+        if (card.Pile?.Type != PileType.Discard || card.HasBeenRemovedFromState) return;
+        await CardPileCmd.Add(card, PileType.Play);
+        if (card.Pile?.Type != PileType.Play) return;
         if (exhaustOnPlay)
         {
             card.ExhaustOnNextPlay = true;

@@ -182,6 +182,8 @@ internal static class MonsterEffectTable
 
         var fx = new MonsterMoveEffects
         {
+            BlockKnown = entry.Block != null, HealKnown = entry.Heal != null,
+            SelfKnown = entry.SelfPowers.Count > 0, PlayerKnown = entry.PlayerPowers.Count > 0, SummonsKnown = entry.Summoned.Count > 0,
             Block = MonsterExpr.Eval(entry.Block, source),
             Heal = MonsterExpr.Eval(entry.Heal, source),
         };

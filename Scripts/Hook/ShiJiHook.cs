@@ -103,7 +103,8 @@ public static class ShiJiHook
     //   action 立刻执行 → ExecuteAction 里 await ChoiceContext.Task 撞 null → NullReferenceException。）
     private static async Task EnqueueShiJiActionAsync(Player player, PileType pile)
     {
-        var ctx = new HookPlayerChoiceContext(player, LocalContext.NetId.Value, GameActionType.Combat);
+        if (LocalContext.NetId is not { } netId || netId != player.NetId) return;
+        var ctx = new HookPlayerChoiceContext(player, netId, GameActionType.Combat);
         await ctx.AssignTaskAndWaitForPauseOrCompletion(ShiJiFlowAsync(ctx, player, pile));
     }
 
@@ -130,7 +131,23 @@ public static class ShiJiHook
             new CardSelectorPrefs(ShiJiPrompt, 0, 1) { RequireManualConfirmation = true },
             filter: eligible.Contains)).FirstOrDefault();
 
-        if (picked is not IShiJiCard shiJi) return;
-        await shiJi.ActivateShiJi(ctx, player);
+        if (picked is not IShiJiCard) return;
+        await ActivateShiJiAsync(ctx, player, picked);
+    }
+
+    internal static async Task ActivateShiJiAsync(PlayerChoiceContext ctx, Player player,
+        MegaCrit.Sts2.Core.Models.CardModel card)
+    {
+        if (card is not IShiJiCard shiJi) return;
+        try
+        {
+            await shiJi.ActivateShiJi(ctx, player);
+        }
+        finally
+        {
+            // 外层 HookPlayerChoiceContext 只绑定玩家，不会通知被选中的时机卡。
+            // 正常返回、取消和异常都结束该卡的 UI 执行生命周期。
+            card.InvokeExecutionFinished();
+        }
     }
 }

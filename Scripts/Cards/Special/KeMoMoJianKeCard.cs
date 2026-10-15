@@ -68,9 +68,12 @@ public class KeMoMoJianKeCard : SelectSpecialBaseCard, ISpecialEffectCard, IShiJ
     public bool CanActivateSpecialEffect(Player player) => true;
 
     public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
     {
         // 先「检索」：让玩家选完卡，再消耗自己
-        await SelectToolCmd.RetrieverCard(
+        var retrieved = await SelectToolCmd.RetrieverCard(
             choiceContext,
             player,
             IsKeMoMagicOrTrap,
@@ -78,15 +81,18 @@ public class KeMoMoJianKeCard : SelectSpecialBaseCard, ISpecialEffectCard, IShiJ
             1, source: this,
             minAmount: 1, requireManualConfirmation: true);   // 范围 (1,1)：必须选 1 张，只有 1 张候选也要自己点
 
+        if (retrieved.Count == 0) return false;
+        SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
         // 之后消耗这张卡（走原版 CardCmd.Exhaust：从手牌消耗会播原版快速消耗特效 + 音效）
         await CardCmd.Exhaust(choiceContext, this);
+        return true;
     }
 
     // 时机：只能从消耗堆发动
     public IEnumerable<PileType> ShiJiPiles => [PileType.Exhaust];
 
     // 「同名卡一回合一次」：按卡名（注册 Id）记，多份拷贝共享一次
-    private string ShiJiOnceKey => PerTurnOnce.Key("ShiJi", Id.Entry);
+    private string ShiJiOnceKey => PerTurnOnce.Key("ShiJi", Id.ToString());
 
     public bool CanActivateShiJi(Player player)
         => !PerTurnOnce.IsUsed(player, ShiJiOnceKey)

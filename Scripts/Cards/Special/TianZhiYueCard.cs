@@ -70,7 +70,10 @@ public class TianZhiYueCard : SelectSpecialBaseCard, IExtraDeckSummonCard
             context: ctx,
             player: player,
             filter: c => c.Type == CardType.Attack,
-            source: this)).ToList();
+            // 手动召唤不经过 CardModel 的打出流程，不会触发 ExecutionFinished。
+            // 原版手牌选择支持空来源：确认后立即恢复选中卡的手牌节点，
+            // 避免未选够素材而返回时，卡牌仍留在屏幕中央等待结束通知。
+            source: null!)).ToList();
         if (chosen.Count < 2) return false;
 
         foreach (var card in chosen)

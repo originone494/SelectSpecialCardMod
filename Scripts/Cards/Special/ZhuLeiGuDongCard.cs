@@ -18,7 +18,7 @@ using SelectSpecialCardMod.Scripts.Tool;
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
 // 珠泪·鼓动
-//   打出：清除**目标敌人**的格挡、力量、人工制品，丢弃1张卡
+//   打出：清除目标敌人的格挡、力量、人工制品、荆棘、硬化外壳、难以杀灭、仪式，丢弃1张卡
 //   送墓：从弃牌堆将1张「珠泪陷阱」卡加入手牌
 public class ZhuLeiGuDongCard : SelectSpecialBaseCard, ISongMuCard
 {
@@ -40,19 +40,27 @@ public class ZhuLeiGuDongCard : SelectSpecialBaseCard, ISongMuCard
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLei),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiMoFa),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXianJing),
+        HoverTipFactory.FromPower<ThornsPower>(),
+        HoverTipFactory.FromPower<HardenedShellPower>(),
+        HoverTipFactory.FromPower<HardToKillPower>(),
+        HoverTipFactory.FromPower<RitualPower>(),
     ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        // ① 清除目标敌人的格挡、力量、人工制品
+        // ① 清除目标敌人的格挡及六种指定能力
         ArgumentNullException.ThrowIfNull(cardPlay.Target, "cardPlay.Target");
         Creature enemy = cardPlay.Target;
 
         // 格挡：走官方的 LoseBlock（会播破防音效 + 触发 AfterBlockBroken）
         await CreatureCmd.LoseBlock(choiceContext, enemy, enemy.Block, Owner.Creature);
-        // 力量 / 人工制品：直接移除整个能力（不在场时 Remove 内部会自己跳过）
+        // 直接移除整个能力；目标没有对应能力时，原版 Remove 会跳过。
         await PowerCmd.Remove<StrengthPower>(enemy);
         await PowerCmd.Remove<ArtifactPower>(enemy);
+        await PowerCmd.Remove<ThornsPower>(enemy);
+        await PowerCmd.Remove<HardenedShellPower>(enemy);
+        await PowerCmd.Remove<HardToKillPower>(enemy);
+        await PowerCmd.Remove<RitualPower>(enemy);
 
         // ② 丢弃1张卡（玩家选择，手牌为空则跳过）
         if (PileType.Hand.GetPile(Owner).Cards.Count == 0) return;

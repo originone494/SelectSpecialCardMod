@@ -52,7 +52,7 @@ public class NiaoNiaoLianGeJiDeYiShiHuaiPower : SelectSpecialBasePower, ISongMuO
             ctx,
             candidates,
             player,
-            new CardSelectorPrefs(SelectionScreenPrompt, 1, 1))).FirstOrDefault();
+            new CardSelectorPrefs(SelectionScreenPrompt, 1, 1) { RequireManualConfirmation = true })).FirstOrDefault();
 
         if (selected != null)
         {

@@ -16,6 +16,8 @@ using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Runs;
 using STS2RitsuLib;
+using STS2RitsuLib.Networking.ManagedActions;
+using System.Text.Json;
 using STS2RitsuLib.CardPiles;
 using STS2RitsuLib.CardPiles.Nodes;
 
@@ -32,6 +34,13 @@ public interface IExtraDeckSummonCard
     Task<bool> PaySummonCost(PlayerChoiceContext ctx, Player player);
 }
 
+// 需要将已支付的素材交给战斗副本的召唤方式（如超量）。
+public interface IExtraDeckSummonStaging
+{
+    void TransferSummonState(CardModel summonedCopy);
+    Task CancelSummonState(PlayerChoiceContext context, Player player, CardModel? summonedCopy);
+}
+
 // 右键额外堆 → 列出额外堆里"当前满足召唤条件"的怪兽 → 选1张 → 支付召唤条件 → 加入手牌。
 // 结构与 ShiJiHook 一致：右键回调不在行动管线里，必须包成 GameAction 入队执行；
 // 高亮沿用「时机」那套按钮呼吸泛光（ShiJiHighlightNode 同款做法）。
@@ -40,14 +49,32 @@ public static class ExtraDeckSummonHook
     private static Player? _turnPlayer;
     private static readonly HashSet<Control> ConnectedButtons = [];
 
+    public sealed record SummonRequest(int Version = 1);
+    private static readonly RitsuLibManagedNetActionDescriptor<SummonRequest> SummonAction = new(
+        ModuleId: Entry.ModId, ActionKey: "extra_deck_summon_v1",
+        Serialize: m => JsonSerializer.SerializeToUtf8Bytes(m),
+        Deserialize: b => JsonSerializer.Deserialize<SummonRequest>(b) ?? throw new JsonException("Missing summon request."),
+        Execute: async ctx =>
+        {
+            try { if (ctx.Message.Version == 1) await SummonFlowAsync(ctx.PlayerChoiceContext, ctx.Player); }
+            finally { if (LocalContext.IsMe(ctx.Player)) _pendingRequest = false; }
+        },
+        ActionType: GameActionType.Combat);
+    private static bool _registered;
+    private static bool _pendingRequest;
     private static LocString SummonPrompt { get; } = new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_EXTRA_DECK_SUMMON");
 
     public static Player? CurrentTurnPlayer => _turnPlayer;
 
     public static void Register()
     {
+        if (_registered) return;
+        RitsuLibManagedNetActions.Register(SummonAction);
+        _registered = true;
+        CombatManager.Instance.CombatEnded += _ => { _turnPlayer = null; _pendingRequest = false; };
         RitsuLibFramework.SubscribeLifecycle<PlayerTurnStartedEvent>(evt =>
         {
+            if (!LocalContext.IsMe(evt.Player)) return;
             _turnPlayer = evt.Player;
             EnsureConnected();
         });
@@ -68,7 +95,9 @@ public static class ExtraDeckSummonHook
     /// <summary>现在能不能召唤（额外堆高亮的判据）。</summary>
     public static bool CanSummonAny(Player player)
     {
+        if (FeatureStatus.Checked && !FeatureStatus.RunSetup) return false;
         if (CombatManager.Instance == null || !CombatManager.Instance.IsInProgress) return false;
+        if (CombatManager.Instance.PlayerActionsDisabled || CombatManager.Instance.IsPlayerReadyToEndTurn(player) || !player.Creature.IsAlive) return false;
         if (player.Creature.CombatState?.CurrentSide != CombatSide.Player) return false;
         return SummonableIn(player).Count > 0;
     }
@@ -95,6 +124,7 @@ public static class ExtraDeckSummonHook
                     Name = "ExtraDeckSummonInput",
                     MouseFilter = Control.MouseFilterEnum.Pass,
                 };
+                button.TreeExiting += () => ConnectedButtons.Remove(button);
                 button.AddChild(catcher);
                 catcher.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
                 catcher.Connect(Control.SignalName.GuiInput, Callable.From<InputEvent>(OnGuiInput));
@@ -112,24 +142,17 @@ public static class ExtraDeckSummonHook
                           + $" 可召唤={(_turnPlayer is { } p ? SummonableIn(p).Count : -1)}");
         if (_turnPlayer is not { } player) return;
         if (SummonableIn(player).Count == 0) return;
-        _ = EnqueueSummonAsync(player);
-    }
-
-    // 把整段流程包成 GameAction 入队：只把 Task 交给 HookPlayerChoiceContext 即可。
-    // 流程里第一次弹玩家选择时会调 SignalPlayerChoiceBegun，游戏会自己
-    // GenerateHookAction → SetChoiceContext → RequestEnqueueHookAction。
-    // （早先手动 Generate+SetChoiceContext+RequestEnqueue 是错的：那时 Task 还没赋值，
-    //   action 立刻执行 → ExecuteAction 里 await ChoiceContext.Task 撞 null → NullReferenceException。）
-    private static async Task EnqueueSummonAsync(Player player)
-    {
-        var ctx = new HookPlayerChoiceContext(player, LocalContext.NetId ?? 0, GameActionType.Combat);
-        await ctx.AssignTaskAndWaitForPauseOrCompletion(SummonFlowAsync(ctx, player));
+        if (_pendingRequest || !CanSummonAny(player)) return;
+        _pendingRequest = true;
+        if (!RitsuLibManagedNetActions.Request(RunManager.Instance, SummonAction, new SummonRequest(), player.NetId)) _pendingRequest = false;
     }
 
     private static async Task SummonFlowAsync(PlayerChoiceContext ctx, Player player)
     {
         try
         {
+            if (!CanSummonAny(player)) return;
+            var combat = player.Creature.CombatState;
             var eligible = SummonableIn(player);
             if (eligible.Count == 0) return;
 
@@ -142,22 +165,41 @@ public static class ExtraDeckSummonHook
                 new CardSelectorPrefs(SummonPrompt, 0, 1) { RequireManualConfirmation = true })).FirstOrDefault();
             if (picked is not IExtraDeckSummonCard summon) return;
             // 选完再判一次：期间手牌可能已经变了
-            if (!summon.CanSummonFromExtraDeck(player)) return;
+            if (!ReferenceEquals(player.Creature.CombatState, combat) || !CanSummonAny(player)
+                || picked.Owner != player || picked.Pile?.Type != Entry.ExtraPile
+                || !summon.CanSummonFromExtraDeck(player)) return;
 
             // 条件没支付成功（没选够/取消）→ 什么都不发生：不消耗额外堆、不加手牌
             if (!await summon.PaySummonCost(ctx, player)) return;
 
-            // 额外堆那张移出（战斗中消耗，战斗结束由 ExtraDeckSeries 补齐）
-            await ExtraDeckSeries.Consume(player, picked);
-            var template = ModelDb.AllCards.FirstOrDefault(c => c.GetType() == picked.GetType());
-            if (template == null) return;
-            var copy = player.Creature.CombatState!.CreateCard(template, player);
-            await CardPileCmd.AddGeneratedCardToCombat(copy, PileType.Hand, player);
-            Entry.Logger.Info($"[ExtraDeckSummon] 召唤完成：{picked.Title}");
+            CardModel? copy = null;
+            bool completed = false;
+            try
+            {
+                // 额外堆持久卡移入已用区，战斗副本负责承接素材状态。
+                if (CombatManager.Instance.IsOverOrEnding || !ReferenceEquals(player.Creature.CombatState, combat)
+                    || picked.Pile?.Type != Entry.ExtraPile) return;
+                await ExtraDeckSeries.Consume(player, picked);
+                if (picked.Pile?.Type != Entry.ExtraUsedPile) throw new InvalidOperationException("Extra monster was not consumed.");
+                var template = ModelDb.AllCards.FirstOrDefault(c => c.GetType() == picked.GetType());
+                if (template == null) return;
+                copy = ExtraDeckSeries.CreateSummonedCopy(player, picked);
+                if (picked is IExtraDeckSummonStaging staging) staging.TransferSummonState(copy);
+                var result = await CardPileCmd.AddGeneratedCardToCombat(copy, PileType.Hand, player);
+                if (!result.success) throw new InvalidOperationException("Summoned copy did not enter combat.");
+                completed = true;
+                Entry.Logger.Info($"[ExtraDeckSummon] 召唤完成：{picked.Title}");
+            }
+            finally
+            {
+                if (!completed && picked is IExtraDeckSummonStaging staging)
+                    await staging.CancelSummonState(ctx, player, copy);
+            }
         }
         catch (System.Exception e)
         {
             Entry.Logger.Error($"[ExtraDeckSummon] 召唤流程异常：{e}");
+            throw;
         }
     }
 }
@@ -181,7 +223,7 @@ public partial class ExtraDeckHighlightNode : Node
         if (_button == null || !GodotObject.IsInstanceValid(_button)) return;
 
         bool shouldGlow = ExtraDeckSummonHook.CurrentTurnPlayer is { } player
-                          && ExtraDeckSummonHook.CanSummonAny(player);
+                          && UiConditions.ExtraSummon(player);
         if (shouldGlow == _highlighting) return;
 
         _highlighting = shouldGlow;

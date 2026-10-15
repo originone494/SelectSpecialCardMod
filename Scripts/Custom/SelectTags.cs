@@ -32,6 +32,7 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 [RegisterOwnedCardTag(nameof(YingDui))]
 // 「额外怪兽」：来自游戏王、且属于额外卡组（融合/同调/超量/连接）的怪兽卡（描述留空）
 [RegisterOwnedCardTag(nameof(ExtraMonster))]
+[RegisterOwnedCardTag(nameof(ChaoLiang))]
 // 「光恶魔」：天之月的种族/属性标记（描述留空）
 [RegisterOwnedCardTag(nameof(GuangEMo))]
 // 「Link2」：连接怪兽（LINK-2）标记（描述留空）
@@ -55,6 +56,14 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 [RegisterOwnedCardTag(nameof(ZhuLeiXiaJiGuaiShou))]
 [RegisterOwnedCardTag(nameof(ZhuLeiRongHe))]
 [RegisterOwnedCardTag(nameof(JuShe))]
+[RegisterOwnedCardTag(nameof(YiXiangMing))]
+[RegisterOwnedCardTag(nameof(YiXiangMingGuaiShou))]
+[RegisterOwnedCardTag(nameof(YiXiangMingMoFa))]
+[RegisterOwnedCardTag(nameof(YiXiangMingXianJing))]
+[RegisterOwnedCardTag(nameof(LingBai))]
+[RegisterOwnedCardTag(nameof(LingBaiEffect))]
+[RegisterOwnedCardTag(nameof(KeDu3))]
+[RegisterOwnedCardTag(nameof(KeDu5))]
 public class SelectTags
 {
     public static readonly CardTag TianBeiLong = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(TianBeiLong)).GetModCardTag();
@@ -82,6 +91,7 @@ public class SelectTags
     public static readonly CardTag Xing4 = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(Xing4)).GetModCardTag();
     // 「额外怪兽」：来自游戏王、且属于额外卡组（融合/同调/超量/连接）的怪兽卡
     public static readonly CardTag ExtraMonster = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(ExtraMonster)).GetModCardTag();
+    public static readonly CardTag ChaoLiang = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(ChaoLiang)).GetModCardTag();
     public static readonly CardTag GuangEMo = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(GuangEMo)).GetModCardTag();
     public static readonly CardTag Link2 = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(Link2)).GetModCardTag();
     // 「Link1」：连接怪兽（LINK-1）标记
@@ -120,4 +130,15 @@ public class SelectTags
     // 「珠泪融合」：发动式关键字（塞壬／小美人鱼／梅洛）
     public static readonly CardTag ZhuLeiRongHe = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(ZhuLeiRongHe)).GetModCardTag();
     public static readonly CardTag JuShe = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(JuShe)).GetModCardTag();
+    public static readonly CardTag YiXiangMing = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(YiXiangMing)).GetModCardTag();
+    public static readonly CardTag YiXiangMingGuaiShou = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(YiXiangMingGuaiShou)).GetModCardTag();
+    public static readonly CardTag YiXiangMingMoFa = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(YiXiangMingMoFa)).GetModCardTag();
+    public static readonly CardTag YiXiangMingXianJing = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(YiXiangMingXianJing)).GetModCardTag();
+    // 灵摆怪兽沿用原注册 ID，旧存档和旧引用仍识别为同一标签。
+    public static readonly CardTag LingBaiGuaiShou = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(LingBai)).GetModCardTag();
+    public static readonly CardTag LingBai = LingBaiGuaiShou;
+    public static readonly CardTag LingBaiEffect = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(LingBaiEffect)).GetModCardTag();
+    // 灵摆刻度与怪兽星级独立，供刻度条件判断使用。
+    public static readonly CardTag KeDu3 = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(KeDu3)).GetModCardTag();
+    public static readonly CardTag KeDu5 = ModContentRegistry.GetQualifiedCardTagId(Entry.ModId, nameof(KeDu5)).GetModCardTag();
 }

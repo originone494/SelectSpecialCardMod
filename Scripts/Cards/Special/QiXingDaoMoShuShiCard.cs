@@ -27,7 +27,7 @@ public class QiXingDaoMoShuShiCard : SelectSpecialBaseCard
         new CalculatedDamageVar(ValueProp.Move).WithMultiplier(static (card, _) =>
         {
             if (card?.Owner == null) return 0m;
-            return PileType.Discard.GetPile(card.Owner).Cards.Select(c => c.Title).Distinct().Count();
+            return PileType.Discard.GetPile(card.Owner).Cards.Select(c => c.Id).Distinct().Count();
         }),
     ];
 

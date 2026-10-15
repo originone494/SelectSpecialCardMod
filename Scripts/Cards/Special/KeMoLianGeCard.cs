@@ -32,7 +32,9 @@ public class KeMoLianGeCard : SelectSpecialBaseCard, IShiJiCard
         SelectTags.ShiJi,
     ];
 
-    public override IEnumerable<CardKeyword> CanonicalKeywords => [];
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
+
+
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
@@ -57,12 +59,15 @@ public class KeMoLianGeCard : SelectSpecialBaseCard, IShiJiCard
 
     public async Task ActivateShiJi(PlayerChoiceContext ctx, Player player)
     {
-        // 除外消耗堆的这张卡
-        await CardPileCmd.Add(this, Entry.ChuWaiPile);
-
         // 手牌的攻击卡当融合素材（消耗）；「作为装备的刻魔怪兽」也能当素材
         await KeMoFusion.TryFusion(ctx, player, this, PickMonsterPrompt, PickMaterialPrompt,
-            FusionPool, KeMoFusionDestination.Exhaust);
+            FusionPool, KeMoFusionDestination.Exhaust,
+            payActivationCost: async () =>
+            {
+                if (Pile?.Type != PileType.Exhaust) return false;
+                await CardPileCmd.Add(this, Entry.ChuWaiPile);
+                return Pile?.Type == Entry.ChuWaiPile;
+            });
     }
 
     // 素材池 = 手牌的攻击卡 + 正在当装备的「刻魔怪兽」

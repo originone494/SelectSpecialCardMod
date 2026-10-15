@@ -53,6 +53,7 @@ public class WangZhiGuanPower : SelectSpecialBasePower
     {
         // 只处理"进入弃牌堆"且带荷鲁斯怪兽标签的卡（打出、丢弃等所有路径都会走到这里）
         if (card.Pile?.Type != PileType.Discard) return;
+        if (card.Owner != Owner.Player) return;
         if (!card.Tags.Contains(SelectTags.HeLuSiGuaiShou)) return;
         if (CombatState == null) return;
 
