@@ -35,7 +35,6 @@ public class ZhuLeiXiaoMeiCard : SelectSpecialBaseCard, ISongMuCard
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.SongMu,
         SelectTags.ZhuLeiRongHe,
-        SelectTags.ZhuLeiXiaJiGuaiShou,
         SelectTags.YingDui,
     ];
 
@@ -52,7 +51,6 @@ public class ZhuLeiXiaoMeiCard : SelectSpecialBaseCard, ISongMuCard
         HoverTipFactory.FromKeyword(CardKeyword.Retain),
         // 「应对」只在这里出现：卡面靠"应对：…"纯文本，悬停时给出这个关键字的说明
         HoverTipFactory.FromKeyword(SelectKeywords.YingDui),
-        HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXiaJiGuaiShou),
     ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)

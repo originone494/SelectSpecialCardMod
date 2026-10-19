@@ -77,7 +77,7 @@ public static class YiXiangMingSpellProbe
                     else if (spell is YiXiangMingJueZeCard)
                     {
                         var retrieval = Retrievals.Single();
-                        if (!retrieval.Filter(spell) || retrieval.Filter(voice) || retrieval.Options.Destination != RetrievalDestination.Hand
+                        if (retrieval.Filter(spell) || retrieval.Filter(voice) || retrieval.Options.Destination != RetrievalDestination.Hand
                             || retrieval.Options.Minimum != 1 || !retrieval.Options.Confirm)
                             throw new Exception("Scelta second branch has the wrong retrieval filter/destination.");
                     }
@@ -127,8 +127,19 @@ public static class YiXiangMingSpellProbe
                 throw new Exception("A lethal life payment continued into retrieval.");
 
             foreach (var token in new EffectChoiceCard[] { new EffectOneCard(), new EffectTwoCard() })
+            {
                 if (token.ShouldShowInCardLibrary || token.CanBeGeneratedInCombat || token.CanBeGeneratedByModifiers || token.Rarity != CardRarity.Token)
                     throw new Exception("Choice tokens can enter the player's obtainable cards.");
+                foreach (var source in new CardModel[] { new YiXiangMingJueZeCard(), new YiXiangMingYaoQingCard(), ModelDb.Card<MegaCrit.Sts2.Core.Models.Cards.DefendIronclad>() })
+                {
+                    token.UseAppearanceOf(source);
+                    var expected = source is STS2RitsuLib.Scaffolding.Content.ModCardTemplate mod ? mod.CustomPortraitPath : source.PortraitPath;
+                    var style = source.Rarity == CardRarity.Ancient
+                        ? STS2RitsuLib.Scaffolding.Content.CardVisualStyle.Ancient : STS2RitsuLib.Scaffolding.Content.CardVisualStyle.Standard;
+                    if (token.AssetProfile.PortraitPath != expected || token.AssetProfile.VisualStyle != style || token.Rarity != CardRarity.Token)
+                        throw new Exception("Choice appearance lost the source portrait/layout or changed gameplay rarity.");
+                }
+            }
         }
         finally { h.UnpatchAll(h.Id); Reset(); }
         GD.Print("PASS: all six spell branches, skill/Ancient/zero-cost tags, effect-placed single-card zone vs ordinary edge, mandatory choice cards, random fallback, recovery filters/free cost, lethal-loss stop and hidden choice tokens.");
@@ -175,6 +186,9 @@ public static class YiXiangMingSpellProbe
                 Choices++;
                 if (cards.Count != 2 || cards[0] is not EffectOneCard || cards[1] is not EffectTwoCard)
                     throw new Exception("Missing or misordered numbered choices.");
+                if (cards.Cast<EffectChoiceCard>().Any(c => c.AssetProfile.VisualStyle != STS2RitsuLib.Scaffolding.Content.CardVisualStyle.Ancient
+                    || c.AssetProfile.PortraitPath?.EndsWith("EffectChoicePortrait.tres") != false))
+                    throw new Exception("Spell choices did not inherit the casting card's Ancient illustration/layout.");
                 return Task.FromResult<IEnumerable<CardModel>>([cards[Option]]);
             }
             return Task.FromResult<IEnumerable<CardModel>>(cards.Take(maxSelect).ToList());

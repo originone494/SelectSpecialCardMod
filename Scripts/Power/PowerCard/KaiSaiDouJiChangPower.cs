@@ -26,6 +26,7 @@ public class KaiSaiDouJiChangPower : SelectSpecialBasePower
     {
         if (dealer == null || !dealer.IsMonster) return 1m;
         if (Owner == null || Owner.CombatState == null) return 1m;
+        if (dealer.Side == Owner.Side) return 1m;
         if (Owner.CombatState.HittableEnemies.Count <= 1) return 1m;
 
         return 0m;

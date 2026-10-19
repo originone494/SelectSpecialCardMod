@@ -1,6 +1,7 @@
 # Godot 4+ specific ignores
+# 只忽略缓存目录 .godot/。不要写 *.godot：那条会连工程文件 project.godot 一起忽略掉，
+# 导致干净检出后工程打不开、也无法导出 PCK。
 .godot/
-*.godot
 /android/
 .claude/
 .trae/

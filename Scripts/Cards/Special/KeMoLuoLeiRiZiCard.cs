@@ -27,7 +27,7 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 //   打出：造成24点伤害
 //   登场：从消耗堆·除外堆将1张「光恶魔」加入手牌（是/否，与珠泪·水仙人鱼同款）
 //   驻场：这张卡位于手牌时，所有敌人失去6点力量（真的挂「力量 −6」，血条上方能看到图标）
-//   消耗：从消耗堆将1张除此卡以外的「光恶魔」返回抽牌堆·额外堆（额外怪兽→额外堆），对所有敌人造成12点伤害
+//   消耗：可以从消耗堆将1张除此卡以外的「光恶魔」返回抽牌堆·额外堆（额外怪兽→额外堆），对所有敌人造成12点伤害
 public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFusionMonster
 {
     public KeMoLuoLeiRiZiCard() : base(2, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
@@ -40,7 +40,6 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
     ];
 
     protected override HashSet<CardTag> CanonicalTags => [
-        SelectTags.ExtraMonster,
         SelectTags.GuangEMo,
         SelectTags.KeMoGuaiShou,
         SelectTags.KeMo,
@@ -52,7 +51,6 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
     public override IEnumerable<CardKeyword> CanonicalKeywords => [];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
@@ -190,6 +188,7 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
     }
 
     // 消耗：这张卡被消耗时发动
+    private static LocString XiaoHaoChoicePrompt { get; } = new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_LUO_LEI_RI_ZI_XIAO_HAO_CHOICE");
     private static LocString XiaoHaoPrompt { get; } = new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_LUO_LEI_RI_ZI_XIAO_HAO");
 
     public override async Task AfterCardExhausted(PlayerChoiceContext choiceContext, CardModel card, bool causedByEthereal)
@@ -202,13 +201,15 @@ public class KeMoLuoLeiRiZiCard : SelectSpecialBaseCard, IDengChangCard, IKeMoFu
 
         var exhaustPile = PileType.Exhaust.GetPile(Owner);
         if (!exhaustPile.Cards.Any(c => c != this && IsGuangEMo(c))) return;
+        // 无候选不询问；放弃本次效果时，不返回卡牌，也不造成伤害。
+        if (!await SelectToolCmd.AskYesNo(choiceContext, Owner, XiaoHaoChoicePrompt, source: this)) return;
         var picked = (await CardSelectCmd.FromCombatPile(
             choiceContext, exhaustPile, Owner, CardPrefs(this, XiaoHaoPrompt, 1, 1),
             filter: c => c != this && IsGuangEMo(c))).FirstOrDefault();
         if (picked == null || picked.Pile?.Type != PileType.Exhaust) return;
 
         // 必须成功返回一张光恶魔，才继续造成群体伤害。
-        if (picked.Tags.Contains(SelectTags.ExtraMonster))
+        if (CardClassification.IsExtraMonster(picked))
         {
             if (!await ExtraDeckSeries.ReturnExtraMonster(Owner, picked)) return;
         }

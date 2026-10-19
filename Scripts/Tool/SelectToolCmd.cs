@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Godot;
+using HarmonyLib;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -32,6 +34,23 @@ namespace SelectSpecialCardMod.Scripts.Tool;
 
 public static class SelectToolCmd
 {
+    // ── 检索耗时诊断 ──
+    // 默认一直开启（每次检索只多两行日志，不影响玩法）。
+    // 想临时关掉：设环境变量 SCM_RETRIEVE_TIMING=0（只有明确写 0 才关闭）。
+    // 每次检索打印两行：
+    //   [检索计时] 目的=手牌 候选=248 克隆=248 筛选=1ms 克隆=6ms 界面等待=812ms（含玩家思考） 总计=819ms
+    //   [检索计时] 界面构建=96ms 实例化卡节点=18
+    // 第一行区分"筛候选 / 建卡 / 界面等待"（等待里包含你自己看牌的时间，别把它当卡顿）；
+    // 第二行是原版选牌界面真正建卡牌节点的耗时——卡节点是滑动窗口，只建屏幕上看得见的那些，
+    // 所以这个数字不会随候选数线性增长。
+    internal static readonly bool RetrieveTiming = DecideRetrieveTiming();
+
+    private static bool DecideRetrieveTiming()
+        => System.Environment.GetEnvironmentVariable("SCM_RETRIEVE_TIMING") != "0";
+
+    // 当前是否处于一次检索流程中，供选牌界面构建计时判断。
+    internal static int RetrieveDepth;
+
     /// <summary>
     /// 消耗若干张卡。正常情况下原版 CardCmd.Exhaust 就够（它自带演出）；
     /// 但它的失败是**静默的**（内部 CardPileCmd.Add 返回 success=false 时没人看），
@@ -123,7 +142,12 @@ public static class SelectToolCmd
         bool fromPrimary;
         if (primary.Count == 0) fromPrimary = false;
         else if (secondary.Count == 0) fromPrimary = true;
-        else fromPrimary = await AskYesNo(ctx, player, choicePrompt, source);
+        else
+        {
+            var optionsPrompt = CardPrompts.Named(choicePrompt, source);
+            optionsPrompt.Add("Amount", minSelect);
+            fromPrimary = await AskYesNo(ctx, player, optionsPrompt, source);
+        }
 
         var candidates = fromPrimary ? primary : secondary;
         int min = Math.Min(minSelect, candidates.Count);
@@ -201,7 +225,7 @@ public static class SelectToolCmd
     // isDiscard = true 时改为送入弃牌堆（并结算"被丢弃"语义）；
     // isExhaust = true 时改为送入消耗堆（并结算"被消耗"语义）。
     // minAmount = 至少要选几张（默认 0 = 可以什么都不选就退出）；
-    // requireManualConfirmation = true 时即使候选数 ≤ 最少选择数（例如只有 1 张）也必须玩家自己点。
+    // 非随机检索始终手动选择并确认；保留requireManualConfirmation参数以兼容已有调用。
     public static Task<List<CardModel>> RetrieverCard(
         PlayerChoiceContext choiceContext,
         Player player,
@@ -209,7 +233,7 @@ public static class SelectToolCmd
         Func<CardPoolModel, bool>? poolFilter = null,
         int amount = 1, bool isDiscard = false, bool isRandom = false, LocString? prompt = null,
         CardModel? source = null, bool isExhaust = false,
-        int minAmount = 0, bool requireManualConfirmation = false)
+        int minAmount = 0, bool requireManualConfirmation = true)
     {
         if (isDiscard && isExhaust) throw new ArgumentException("Retrieval destination cannot be both Discard and Exhaust.");
         return CardRetrieval.Retrieve(choiceContext, player, filter,
@@ -225,125 +249,160 @@ public static class SelectToolCmd
         Func<CardPoolModel, bool>? poolFilter = null,
         int amount = 1, bool isDiscard = false, bool isRandom = false, LocString? prompt = null,
         CardModel? source = null, bool isExhaust = false,
-        int minAmount = 0, bool requireManualConfirmation = false)
+        int minAmount = 0, bool requireManualConfirmation = true)
     {
         if (player == null || amount < 1) return [];
+        var activeCombat = player.Creature.CombatState;
+        if (activeCombat == null || CombatManager.Instance.IsOverOrEnding || !player.Creature.IsAlive) return [];
+
+        // 耗时诊断（SCM_RETRIEVE_TIMING=1 才生效）：分别记录"筛候选 / 建卡 / 界面等待"。
+        var timing = RetrieveTiming ? Stopwatch.StartNew() : null;
+        long candidatesMs = 0, createMs = 0, selectMs = 0;
 
         var cards = ModelDb.AllCards
+            .Where(c => CardAvailability.IsAllowed(c, player.RunState))
             .Where(filter)
             .Where(c => !IsNonObtainable(c))
-            .Where(c => !c.Tags.Contains(SelectTags.ExtraMonster))
+            .Where(c => !CardClassification.IsExtraMonster(c))
             .Where(c => poolFilter == null || (c.Pool != null && poolFilter(c.Pool)))
             .GroupBy(c => c.Id)
             .Select(g => g.First()).OrderBy(c => c.Id)
             .ToList();
         if (cards.Count == 0) return [];
 
-        var combatCopies = cards
-            .Select(c => player.Creature.CombatState!.CreateCard(c, player))
-            .ToList();
+        var combatCopies = new List<CardModel>();
+        int createdCount = 0;
 
-        List<CardModel> selectCards;
-        if (isRandom)
+        // 落选候选只是为了出现在选牌界面里，不会被放进任何牌堆；不从这里注销，
+        // 每检索一次就会在这局战斗的卡牌账本里累积一批谁也访问不到的卡
+        // （被选中的卡会进牌堆，Pile 不为空，因此不会被这里清掉）。
+        void ReleaseUnused()
         {
-            // 随机抽取：从候选中不重复地随机取最多 amount 张，不弹选择界面
-            selectCards = new List<CardModel>();
-            for (int i = 0; i < amount && combatCopies.Count > 0; i++)
+            foreach (var unused in combatCopies)
+                if (!unused.HasBeenRemovedFromState && unused.Pile == null) unused.RemoveFromState();
+        }
+
+        try
+        {
+            if (timing != null) { candidatesMs = timing.ElapsedMilliseconds; RetrieveDepth++; }
+            foreach (var card in cards) combatCopies.Add(activeCombat.CreateCard(card, player));
+            createdCount = combatCopies.Count;
+            if (timing != null) createMs = timing.ElapsedMilliseconds - candidatesMs;
+
+            List<CardModel> selectCards;
+            if (isRandom)
             {
-                var picked = player.RunState.Rng.Niche.NextItem(combatCopies)!;
-                combatCopies.Remove(picked);
-                selectCards.Add(picked);
+                // 随机抽取：从候选中不重复地随机取最多 amount 张，不弹选择界面
+                selectCards = new List<CardModel>();
+                for (int i = 0; i < amount && combatCopies.Count > 0; i++)
+                {
+                    var picked = player.RunState.Rng.Niche.NextItem(combatCopies)!;
+                    combatCopies.Remove(picked);
+                    selectCards.Add(picked);
+                }
+            }
+            else
+            {
+                // 提示文本：调用方自带 > 带卡名的 mod 检索提示（source 非空）
+                var usedPrompt = prompt ?? (source != null
+                    ? SelectSpecialBaseCard.RetrieveNamedPrompt()
+                    : SelectSelectorPrefs.RetrieverSelectionPrompt);
+
+
+                usedPrompt = CardPrompts.Named(usedPrompt, source);
+                // 强制手动确认时原版不会自动收缩下限；候选不足也必须允许确认现有的卡。
+                var prefs = new CardSelectorPrefs(usedPrompt, Math.Min(minAmount, combatCopies.Count), Math.Min(amount, combatCopies.Count))
+                {
+                    RequireManualConfirmation = true,
+                };
+                selectCards = (await CardSelectCmd.FromSimpleGrid(
+                    choiceContext,
+                    combatCopies,
+                    player,
+                    prefs
+                )).ToList();
+            }
+            if (timing != null) selectMs = timing.ElapsedMilliseconds - candidatesMs - createMs;
+
+            if (player.Creature.CombatState != activeCombat || CombatManager.Instance.IsOverOrEnding
+                || !player.Creature.IsAlive) return [];
+            if (selectCards.Count > 0) SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
+            if (isExhaust)
+            {
+                // 「检索并消耗」：与「检索并丢弃」同款做法，只是进的是消耗堆、结算的是"被消耗"语义。
+                foreach (var card in selectCards)
+                {
+                    if (player.Creature.CombatState != activeCombat || CombatManager.Instance.IsOverOrEnding) break;
+                    var combatState = card.CombatState ?? player.Creature.CombatState;
+                    if (combatState == null) continue;
+                    if (CombatManager.Instance.IsOverOrEnding) continue;
+
+                    // 原版生成命令已经写入生成记录并广播生成钩子，不能再重复结算一次。
+                    var addResult = await CardPileCmd.AddGeneratedCardToCombat(card, PileType.Exhaust, player);
+                    // 生成连锁可能已经移动了这张卡；尊重该去向，不强行搬回消耗堆。
+                    if (!addResult.success || card.HasBeenRemovedFromState || card.Pile?.Type != PileType.Exhaust) continue;
+
+                    if (SaveManager.Instance.PrefsSave.FastMode != FastModeType.Instant)
+                    {
+                        var previewFinished = CardCmd.Preview(card, DiscardPreviewSeconds);
+                        if (previewFinished != null) await previewFinished.Task;
+                    }
+
+                    if (player.Creature.CombatState != activeCombat || CombatManager.Instance.IsOverOrEnding
+                        || card.HasBeenRemovedFromState || card.Pile?.Type != PileType.Exhaust) continue;
+                    CombatManager.Instance.History.CardExhausted(combatState, card);
+                    await MegaCrit.Sts2.Core.Hooks.Hook.AfterCardExhausted(combatState, choiceContext, card, false);
+
+                    Entry.Logger.Info($"[检索并消耗] {card.Id.Entry}（消耗堆现有 {PileType.Exhaust.GetPile(player).Cards.Count} 张，addSuccess={addResult.success}）");
+                }
+            }
+            else if (isDiscard)
+            {
+                // 「检索并丢弃」要同时满足两件事：① 保留"生成卡"记录；② 走真正的弃牌语义（触发弃牌相关效果）。
+                // 做法：先按生成卡入堆（入的是弃牌堆），再手动结算"被丢弃"（不用 CardCmd.Discard，
+                // 否则会多出一次"弃牌堆 → 弃牌堆"的入堆和它的重复特效）。
+                foreach (var card in selectCards)
+                {
+                    if (player.Creature.CombatState != activeCombat || CombatManager.Instance.IsOverOrEnding) break;
+                    var addResult = await CardPileCmd.AddGeneratedCardToCombat(card, PileType.Discard, player);
+                    if (!addResult.success || card.HasBeenRemovedFromState || card.Pile?.Type != PileType.Discard) continue;
+
+                    // 弃牌特效：卡从屏幕中央出现、停留片刻、带拖尾飞进弃牌堆。
+                    if (SaveManager.Instance.PrefsSave.FastMode != FastModeType.Instant)
+                    {
+                        var previewFinished = CardCmd.Preview(card, DiscardPreviewSeconds);
+                        if (previewFinished != null) await previewFinished.Task;
+                    }
+
+                    if (player.Creature.CombatState != activeCombat || CombatManager.Instance.IsOverOrEnding
+                        || card.HasBeenRemovedFromState || card.Pile?.Type != PileType.Discard) continue;
+                    var combatState = card.CombatState ?? player.Creature.CombatState;
+                    if (combatState == null) continue;
+                    CombatManager.Instance.History.CardDiscarded(combatState, card);
+                    await MegaCrit.Sts2.Core.Hooks.Hook.AfterCardDiscarded(combatState, choiceContext, card);
+                }
+            }
+            else
+            {
+                foreach (var card in selectCards)
+                {
+                    if (player.Creature.CombatState != activeCombat || CombatManager.Instance.IsOverOrEnding) break;
+                    await CardPileCmd.AddGeneratedCardToCombat(card, PileType.Hand, player);
+                }
+            }
+
+            return selectCards;
+        }
+        finally
+        {
+            ReleaseUnused();
+            if (timing != null)
+            {
+                RetrieveDepth--;
+                string destination = isExhaust ? "消耗" : isDiscard ? "弃牌" : "手牌";
+                Entry.Logger.Info($"[检索计时] 目的={destination} 候选={cards.Count} 克隆={createdCount} 筛选={candidatesMs}ms 克隆={createMs}ms 界面等待={selectMs}ms（含玩家思考） 总计={timing.ElapsedMilliseconds}ms");
             }
         }
-        else
-        {
-            // 提示文本：调用方自带 > 带卡名的 mod 检索提示（source 非空）
-            var usedPrompt = prompt ?? (source != null
-                ? SelectSpecialBaseCard.RetrieveNamedPrompt()
-                : SelectSelectorPrefs.RetrieverSelectionPrompt);
-
-
-            usedPrompt = CardPrompts.Named(usedPrompt, source);
-            var prefs = new CardSelectorPrefs(usedPrompt, minAmount, amount)
-            {
-                RequireManualConfirmation = requireManualConfirmation || minAmount > 0,
-            };
-            selectCards = (await CardSelectCmd.FromSimpleGrid(
-                choiceContext,
-                combatCopies,
-                player,
-                prefs
-            )).ToList();
-        }
-
-        if (selectCards.Count > 0) SelectSpecialCardMod.Scripts.Rules.EffectActivation.PaymentStarted();
-        if (isExhaust)
-        {
-            // 「检索并消耗」：与「检索并丢弃」同款做法，只是进的是消耗堆、结算的是"被消耗"语义。
-            foreach (var card in selectCards)
-            {
-                var combatState = card.CombatState ?? player.Creature.CombatState;
-                if (combatState == null) continue;
-                if (CombatManager.Instance.IsOverOrEnding) continue;
-
-                // 生成卡记录（与 AddGeneratedCopiesToPile 同款：先补记录，再入堆，最后广播生成）
-                CombatManager.Instance.History.CardGenerated(combatState, card, player);
-
-                var addResult = await CardPileCmd.AddGeneratedCardToCombat(card, PileType.Exhaust, player);
-
-                // 兜底：上面那条万一没把卡放进消耗堆，用普通 Add 强制放一次
-                if (card.Pile?.Type != PileType.Exhaust)
-                {
-                    await CardPileCmd.Add(card, PileType.Exhaust);
-                }
-                if (card.Pile?.Type != PileType.Exhaust) continue;
-
-                await MegaCrit.Sts2.Core.Hooks.Hook.AfterCardGeneratedForCombat(combatState, card, player);
-
-                if (SaveManager.Instance.PrefsSave.FastMode != FastModeType.Instant)
-                {
-                    var previewFinished = CardCmd.Preview(card, DiscardPreviewSeconds);
-                    if (previewFinished != null) await previewFinished.Task;
-                }
-
-                if (CombatManager.Instance.IsOverOrEnding) continue;
-                CombatManager.Instance.History.CardExhausted(combatState, card);
-                await MegaCrit.Sts2.Core.Hooks.Hook.AfterCardExhausted(combatState, choiceContext, card, false);
-
-                Entry.Logger.Info($"[检索并消耗] {card.Id.Entry}（消耗堆现有 {PileType.Exhaust.GetPile(player).Cards.Count} 张，addSuccess={addResult.success}）");
-            }
-        }
-        else if (isDiscard)
-        {
-            // 「检索并丢弃」要同时满足两件事：① 保留"生成卡"记录；② 走真正的弃牌语义（触发弃牌相关效果）。
-            // 做法：先按生成卡入堆（入的是弃牌堆），再手动结算"被丢弃"（不用 CardCmd.Discard，
-            // 否则会多出一次"弃牌堆 → 弃牌堆"的入堆和它的重复特效）。
-            foreach (var card in selectCards)
-            {
-                var addResult = await CardPileCmd.AddGeneratedCardToCombat(card, PileType.Discard, player);
-                if (!addResult.success) continue;
-
-                // 弃牌特效：卡从屏幕中央出现、停留片刻、带拖尾飞进弃牌堆。
-                if (SaveManager.Instance.PrefsSave.FastMode != FastModeType.Instant)
-                {
-                    var previewFinished = CardCmd.Preview(card, DiscardPreviewSeconds);
-                    if (previewFinished != null) await previewFinished.Task;
-                }
-
-                if (CombatManager.Instance.IsOverOrEnding) continue;
-                var combatState = card.CombatState ?? player.Creature.CombatState;
-                if (combatState == null) continue;
-                CombatManager.Instance.History.CardDiscarded(combatState, card);
-                await MegaCrit.Sts2.Core.Hooks.Hook.AfterCardDiscarded(combatState, choiceContext, card);
-            }
-        }
-        else
-        {
-            foreach (var card in selectCards)
-                await CardPileCmd.AddGeneratedCardToCombat(card, PileType.Hand, player);
-        }
-
-        return selectCards;
     }
 
     // 「检索并丢弃」时，卡在屏幕中央停留多久（之后才带拖尾飞进弃牌堆）。
@@ -355,21 +414,36 @@ public static class SelectToolCmd
             _ => 0.8f,
         };
 
-    // 「是/否」选择：弹出「是」「否」两张标记卡让玩家点选（原版 yuno-mod 同款机制）
+    // 保留原来的布尔分支约定：①对应原「是」，②对应原「否」。
+    // 与异响鸣的效果选择使用相同界面，选项说明来自提示键下的 .option1 / .option2。
     public static async Task<bool> AskYesNo(PlayerChoiceContext choiceContext, Player player, LocString prompt, CardModel? source = null)
     {
+        var combat = player.Creature.CombatState;
+        if (combat == null || CombatManager.Instance.IsOverOrEnding || !player.Creature.IsAlive) return false;
         prompt = CardPrompts.Named(prompt, source);
 
-        var shi = player.Creature.CombatState!.CreateCard<ShiCard>(player);
-        var fou = player.Creature.CombatState!.CreateCard<FouCard>(player);
+        var one = combat.CreateCard<EffectOneCard>(player);
+        var two = combat.CreateCard<EffectTwoCard>(player);
+        if (source != null)
+        {
+            one.UseAppearanceOf(source);
+            two.UseAppearanceOf(source);
+        }
+        one.EffectText = OptionText(".option1");
+        two.EffectText = OptionText(".option2");
 
-        CardModel? picked = (await CardSelectCmd.FromSimpleGrid(
-            choiceContext,
-            new List<CardModel> { shi, fou },
-            player,
-            new CardSelectorPrefs(prompt, 1, 1))).FirstOrDefault();
+        var picked = await CardSelectCmd.FromChooseACardScreen(
+            choiceContext, [one, two], player, canSkip: false);
 
-        return picked is ShiCard;
+        return picked == one && player.Creature.CombatState == combat
+            && !CombatManager.Instance.IsOverOrEnding && player.Creature.IsAlive;
+
+        string OptionText(string suffix)
+        {
+            var text = new LocString(prompt.LocTable, prompt.LocEntryKey + suffix);
+            text.AddVariablesFrom(prompt);
+            return text.GetFormattedText();
+        }
     }
 
     // 向指定牌堆加入 amount 张随机卡（从全卡池随机生成战斗副本）。
@@ -384,7 +458,7 @@ public static class SelectToolCmd
         var combatState = player.Creature.CombatState;
         if (combatState == null) return Array.Empty<CardPileAddResult>();
 
-        var candidates = ModelDb.AllCards.Where(c => !IsNonObtainable(c));
+        var candidates = ModelDb.AllCards.Where(c => !IsNonObtainable(c) && CardAvailability.IsAllowed(c, player.RunState));
         if (filter != null) candidates = candidates.Where(filter);
         var candidateList = candidates.ToList();
         if (candidateList.Count == 0) return Array.Empty<CardPileAddResult>();
@@ -414,6 +488,7 @@ public static class SelectToolCmd
         var copies = new List<CardModel>();
         foreach (var def in definitions)
         {
+            if (!CardAvailability.IsAllowed(def, player.RunState)) continue;
             copies.Add(combatState.CreateCard(def, player));
         }
         if (copies.Count == 0) return Array.Empty<CardPileAddResult>();
@@ -483,6 +558,7 @@ public static class SelectToolCmd
         // 选中的1张加入手牌
         foreach (var card in selectedCards)
         {
+            if (CombatManager.Instance.IsOverOrEnding || card.HasBeenRemovedFromState || card.Pile != drawPile) continue;
             await CardPileCmd.Add(card, PileType.Hand);
             result.Add(card);
         }
@@ -492,7 +568,9 @@ public static class SelectToolCmd
         {
             foreach (var card in cardsToScry)
             {
-                if (!selectedCards.Contains(card))
+                // 入手牌/送墓的连锁可能已经挪动后续卡；不从手牌或其他牌堆重新丢弃一次。
+                if (!selectedCards.Contains(card) && card.Pile == drawPile && !card.HasBeenRemovedFromState
+                    && !CombatManager.Instance.IsOverOrEnding)
                 {
                     await CardCmd.Discard(choiceContext, card);
                 }
@@ -532,5 +610,26 @@ public static class SelectToolCmd
         PreviewPileAdd(results, 2f);
 
         return list;
+    }
+}
+
+// 检索耗时诊断的第二段：原版选牌界面（NCardGrid）真正建卡牌节点花了多久。
+// 只读的 Postfix，不改变任何行为；仅在检索计时开启（Debug 默认开）且正处在一次检索流程中时才记录。
+// 卡牌网格是滑动窗口（只实例化屏幕内的行），所以"实例化卡节点"通常远小于候选数——
+// 这条日志就是用来确认这一点的。
+[HarmonyPatch(typeof(NCardGrid), "InitGrid")]
+internal static class RetrieveTimingGridPatch
+{
+    [HarmonyPrefix]
+    static void Prefix(out Stopwatch? __state)
+        => __state = SelectToolCmd.RetrieveTiming && SelectToolCmd.RetrieveDepth > 0 ? Stopwatch.StartNew() : null;
+
+    [HarmonyPostfix]
+    static void Postfix(Stopwatch? __state, NCardGrid __instance)
+    {
+        if (__state == null) return;
+        __state.Stop();
+        int shown = __instance.CurrentlyDisplayedCardHolders.Count();
+        Entry.Logger.Info($"[检索计时] 界面构建={__state.ElapsedMilliseconds}ms 实例化卡节点={shown}");
     }
 }

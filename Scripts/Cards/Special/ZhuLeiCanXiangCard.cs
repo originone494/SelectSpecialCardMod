@@ -117,9 +117,4 @@ public class ZhuLeiCanXiangCard : SelectSpecialBaseCard, ISongMuCard
         }
     }
 
-    protected override void OnUpgrade()
-    {
-        DynamicVars.Block.UpgradeValueBy(4m);
-        DynamicVars.Weak.UpgradeValueBy(1);
-    }
 }

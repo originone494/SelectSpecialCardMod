@@ -36,7 +36,16 @@ public class NiaoNiaoLianGeJiDeYiShiHuaiPower : SelectSpecialBasePower, ISongMuO
         if (card.Owner != Owner.Player) return;
         if (SongMuHook.HasSongMu(card)) return;
         if (!card.IsSlyThisTurn) return;
-        await SendOneFromDrawToDiscard(choiceContext, Owner.Player);
+        var owner = Owner;
+        var combat = CombatState;
+        await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Schedule(async () =>
+        {
+            if (Owner != owner || CombatState != combat || !owner.IsAlive || !owner.Powers.Contains(this)
+                || MegaCrit.Sts2.Core.Combat.CombatManager.Instance.IsOverOrEnding) return;
+            choiceContext.PushModel(this);
+            try { await SendOneFromDrawToDiscard(choiceContext, owner.Player!); }
+            finally { choiceContext.PopModel(this); }
+        });
     }
 
     private async Task SendOneFromDrawToDiscard(PlayerChoiceContext ctx, Player player)

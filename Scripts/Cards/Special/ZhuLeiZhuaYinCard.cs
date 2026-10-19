@@ -2,27 +2,32 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.CardSelection;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.HoverTips;
+using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Models;
-using MegaCrit.Sts2.Core.ValueProps;
+using MegaCrit.Sts2.Core.MonsterMoves.Intents;
+using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
+using MegaCrit.Sts2.Core.Nodes.Vfx;
 using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Hook;
+using SelectSpecialCardMod.Scripts.Intent;
 using SelectSpecialCardMod.Scripts.Pool;
 using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
 // 珠泪·爪音（陷阱）
-//   应对：受到敌人攻击前（本卡在手上）→ 击晕攻击者，然后「检索」并丢弃1张「珠泪下级怪兽」卡，
-//         处理完把这张卡打出（带「消耗」→ 进消耗堆，所以同一份拷贝只触发一次）
+//   应对：含攻击的敌人意图执行前（本卡在手上）→ 先消耗本卡，
+//         击晕并取消整条意图，然后「检索」并丢弃1张「珠泪怪兽」卡
 //   送墓：从弃牌堆将1张「珠泪怪兽」卡加入手牌
-//   不可手动打出：靠「应对」与「送墓」生效，应对处理后消耗本卡
+//   不可手动打出：靠「应对」与「送墓」生效
 public class ZhuLeiZhuaYinCard : SelectSpecialBaseCard, ISongMuCard
 {
     // 目标改成自身：新文案里打出没有效果、也没有需要指定的敌人，留"指定敌人"只会让玩家白点一下
@@ -37,7 +42,7 @@ public class ZhuLeiZhuaYinCard : SelectSpecialBaseCard, ISongMuCard
         SelectTags.YingDui,
     ];
 
-    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Unplayable, CardKeyword.Exhaust, CardKeyword.Retain];
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Unplayable, CardKeyword.Retain];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.SongMu),
@@ -47,40 +52,50 @@ public class ZhuLeiZhuaYinCard : SelectSpecialBaseCard, ISongMuCard
         HoverTipFactory.FromKeyword(SelectKeywords.Retriever),
     ];
 
-    // 应对效果在伤害前结算，不通过 OnPlay。
+    // 应对效果由MonsterDeck在整条意图执行前结算，不通过OnPlay或伤害回调。
     protected override Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay) => Task.CompletedTask;
 
-    // 应对：受到敌人攻击前（参考小美 / 天下独步的大义贼 / 露莎卡 / 残响）
-    public override async Task BeforeDamageReceived(PlayerChoiceContext choiceContext, Creature target, decimal amount,
-        ValueProp props, Creature? dealer, CardModel? cardSource)
+    // 所有客户端按同一玩家顺序、手牌顺序处理；一张成功应对后即停止，不消耗其他爪音。
+    internal static async Task<bool> TryCancelIntent(Creature attacker, MonsterMoveCard intent)
     {
+        if (!attacker.IsAlive || attacker.Side != CombatSide.Enemy || attacker.Monster == null
+            || attacker.CombatState is not { } combat || intent.IsPlaceholder
+            || !intent.Intents.Any(i => i.IntentType is IntentType.Attack or IntentType.DeathBlow)) return false;
 
-        if (FeatureStatus.Checked && !FeatureStatus.AttackProtection) return;        if (target != Owner.Creature) return;
-        if (CombatState == null) return;
-        if (!PileType.Hand.GetPile(Owner).Cards.Contains(this)) return;
-        if (cardSource != null) return;                 // 只要"受到敌人攻击"
-        if (dealer == null || !dealer.IsMonster) return;
+        foreach (var player in combat.Players.OrderBy(p => p.NetId))
+        {
+            if (!player.Creature.IsAlive) continue;
+            foreach (var card in PileType.Hand.GetPile(player).Cards.OfType<ZhuLeiZhuaYinCard>().ToArray())
+            {
+                if (card.Owner != player || card.CombatState != combat || card.Pile?.Type != PileType.Hand) continue;
+                if (await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Run(
+                        () => card.Respond(new BlockingPlayerChoiceContext(), attacker))) return true;
+            }
+        }
+        return false;
+    }
 
-        // ① 击晕敌人（攻击者）。用原版的 CreatureCmd.Stun —— 原版卡「口哨」就是这么做的
-        // 抵消正在结算的这一击；Stun 负责怪物后续状态，两者各司其职。
-        ResponseDamageNegate.Mark(target);
-        await CreatureCmd.Stun(dealer);
+    private async Task<bool> Respond(PlayerChoiceContext choiceContext, Creature attacker)
+    {
+        // ① 先消耗手牌中的本卡；消耗失败时不继续结算应对。
+        var exhausted = await CardCmd.Exhaust(choiceContext, this);
+        if (exhausted?.success != true) return false;
 
-        // ② 「检索」并丢弃1张「珠泪下级怪兽」卡
+        // ② 本次意图由调用方整体跳过，使用原版击晕演出。
+        // 不再设置STUNNED后续状态：外层原生回合会正常记录本次行动，下一手正常推进，
+        // 避免多空过一回合、重新执行被取消的招式或打断一次性招式的转换条件。
+        if (attacker.GetVfxContainer() is { } container && NStunnedVfx.Create(attacker) is { } vfx)
+            container.AddChildSafely(vfx);
+
+        // ③ 「检索」并丢弃1张「珠泪怪兽」卡
         await SelectToolCmd.RetrieverCard(
             choiceContext,
             Owner,
-            ZhuLeiFilter.IsLowerMonster,
+            ZhuLeiFilter.IsMonster,
             p => p is SelectSpecialCardPool,
             1,
             isDiscard: true, source: this);
-
-        // ③ 效果处理完结算本卡去向。原版 AutoPlay 遇到「不可打出」时
-        //    不调用 OnPlay，而按结果牌堆处理；本卡带「消耗」，因此仍进入消耗堆。
-        //    这样同一份拷贝不会一直留在手上、每次被攻击都重复触发
-        //    （AutoPlay 只在 card.Pile == null 时才搬进 Play，手牌里的卡要先自己搬）
-        await CardPileCmd.Add(this, PileType.Play);
-        await CardCmd.AutoPlay(choiceContext, this, null);
+        return true;
     }
 
     // 送墓：从弃牌堆将1张「珠泪怪兽」卡加入手牌

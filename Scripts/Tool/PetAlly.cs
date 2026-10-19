@@ -5,6 +5,7 @@ using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
 using STS2RitsuLib;
 using SelectSpecialCardMod.Scripts.Intent;
@@ -12,7 +13,7 @@ using SelectSpecialCardMod.Scripts.Intent;
 namespace SelectSpecialCardMod.Scripts.Tool;
 
 // 玩家方宠物（「强夺」召唤卡副本召唤的同款怪物）：
-// 宠物由游戏宠物系统承载（PlayerCmd.AddPet）——站玩家身边、无意图、不被敌人攻击、
+// 宠物由游戏宠物系统承载（PlayerCmd.AddPet）——站玩家身边、不被敌人攻击、
 // 回合循环不驱动它。帮打由本类驱动：本地玩家回合开始时，每只宠物对一名随机敌人
 // 造成伤害（伤害=召唤时所选敌人意图的攻击伤害快照，注册时定死）。
 //
@@ -24,13 +25,40 @@ public static class PetAlly
 {
     // 宠物 → 每回合帮打伤害。战斗开始（CombatBegan）清空——宠物随战斗创建/销毁。
     private static readonly System.Collections.Generic.Dictionary<Creature, int> AttackPower = new();
+    private static readonly System.Collections.Generic.Dictionary<Creature, MonsterDisplayCard> IntentCards = new();
 
     public static void Init()
     {
-        CombatManager.Instance.CombatBegan += _ => AttackPower.Clear();
-        CombatManager.Instance.CombatEnded += _ => AttackPower.Clear();
+        CombatManager.Instance.CombatBegan += _ => Clear();
+        CombatManager.Instance.CombatEnded += _ => Clear();
     }
-    public static void Register(Creature pet, int damage) => AttackPower[pet] = damage;
+    private static void Clear() { AttackPower.Clear(); IntentCards.Clear(); }
+    public static bool IsRegistered(Creature? pet) => pet != null && AttackPower.ContainsKey(pet);
+    public static void Register(Creature pet, int damage)
+    {
+        AttackPower[pet] = Math.Max(0, damage);
+        if (pet.PetOwner is { } owner && pet.CombatState is { } combat)
+        {
+            IntentCards.TryGetValue(pet, out var existing);
+            if (damage > 0)
+            {
+                var card = existing as MonsterAttackCard ?? combat.CreateCard<MonsterAttackCard>(owner);
+                card.IntentDamage = damage;
+                card.Repeats = 1;
+                IntentCards[pet] = card;
+            }
+            else
+            {
+                var card = existing as MonsterMoveCard ?? combat.CreateCard<MonsterMoveCard>(owner);
+                card.CardTitle = MonsterText.Of("SELECT_SPECIAL_CARD_MOD_TEXT_PET_IDLE_TITLE");
+                card.LiveText = () => MonsterText.Of("SELECT_SPECIAL_CARD_MOD_TEXT_PET_IDLE");
+                IntentCards[pet] = card;
+            }
+        }
+        if (pet.GetCreatureNode() is { } node) PetAllyPresentation.EnsureAttached(node);
+    }
+    public static CardModel? IntentOf(Creature pet)
+        => pet.IsAlive && IntentCards.TryGetValue(pet, out var card) ? card : null;
     public static async Task RunPetAttacks(PlayerChoiceContext context, MegaCrit.Sts2.Core.Entities.Players.Player player)
     {
         var combat = player.Creature.CombatState;
@@ -44,6 +72,8 @@ public static class PetAlly
             var targets = combat.HittableEnemies.ToList();
             if (targets.Count == 0) break;
             var target = RitsuLibFramework.GetModRunRng(player, Entry.ModId, "pet_targets").NextItem(targets)!;
+            if (pet.GetCreatureNode()?.GetNodeOrNull<PetAllyPresentation>("PetAllyPresentation") is { } presentation)
+                presentation.FaceTarget(target);
             await CreatureCmd.TriggerAnim(pet, "Attack", 0.3f);
             if (CombatManager.Instance.IsOverOrEnding || !ReferenceEquals(player.Creature.CombatState, combat)) break;
             if (!target.IsAlive || pet.IsDead) continue;

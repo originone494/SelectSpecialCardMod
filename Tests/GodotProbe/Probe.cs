@@ -11,6 +11,10 @@ public partial class Probe : Node
     {
         try
         {
+            CardClassificationProbe.Check();
+            SpecialCardUpgradeProbe.Check();
+            YaoShengLuXiNaProbe.Check();
+            await FortunaBuffProbe.Check();
             var h = new Harmony("scm.architecture.godot-framework");
             var attack = typeof(MegaCrit.Sts2.Core.Commands.Builders.AttackCommand);
             var execute = AccessTools.Method(attack, "Execute", [typeof(MegaCrit.Sts2.Core.GameActions.Multiplayer.PlayerChoiceContext)]);
@@ -18,11 +22,20 @@ public partial class Probe : Node
                 ?? attack.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic).Single(t => t.Name.StartsWith("<Execute>d__"));
             var redirect = typeof(STS2RitsuLib.Combat.AttackHits.AttackHitHook).Assembly.GetType("STS2RitsuLib.Combat.AttackHits.Patches.AttackCommandExecuteHitHookPatch")!;
             h.Patch(AccessTools.Method(machine, "MoveNext"), transpiler: new HarmonyMethod(AccessTools.Method(redirect, "Transpiler")));
+            // 复现真实加载顺序：RitsuLib先替换OnPlay调用，再加载本模组，防止探针漏测入口冲突。
+            var wrapper = AccessTools.Method(typeof(MegaCrit.Sts2.Core.Models.CardModel), "OnPlayWrapper");
+            var playMachine = wrapper.GetCustomAttribute<System.Runtime.CompilerServices.AsyncStateMachineAttribute>()?.StateMachineType
+                ?? wrapper.DeclaringType!.GetNestedTypes(BindingFlags.Public | BindingFlags.NonPublic)
+                    .Single(t => t.Name.StartsWith("<OnPlayWrapper>d__"));
+            var playRedirect = typeof(STS2RitsuLib.Cards.CardOnPlayHook).Assembly.GetType("STS2RitsuLib.Cards.Patches.CardOnPlayHookPatch", true)!;
+            h.Patch(AccessTools.Method(playMachine, "MoveNext"), transpiler: new HarmonyMethod(AccessTools.Method(playRedirect, "Transpiler")));
             SelectSpecialCardMod.Scripts.Entry.Init();
             SelectSpecialCardMod.Scripts.Entry.Init();
             if (!FeatureStatus.Arrival || !FeatureStatus.AttackProtection || !FeatureStatus.RunSetup || !FeatureStatus.MonsterDeck || !FeatureStatus.PendulumPlacement || !FeatureStatus.Xyz)
                 throw new System.Exception("Feature completeness check failed.");
             GD.Print("PASS: complete production Entry.Init is idempotent and all critical feature patch groups are available.");
+            await CardEffectQueueProbe.Check();
+            SpecialEffectRightClickProbe.Check();
             RunSeenCards.Init(); RunSeenCards.Init();
             ExtraDeckRunState.Init(); ExtraDeckRunState.Init();
             ExtraDeckSummonHook.Register(); ExtraDeckSummonHook.Register();
@@ -41,6 +54,7 @@ public partial class Probe : Node
             GD.Print("PASS: actual card tags retain link rating-or-one counting and distinct-material minimum.");
             await CheckPersistentExtraReturns();
             await CheckMandatorySelection();
+            await SelectionFlowProbe.Check();
             CheckEquipmentVisualState();
             await CheckSpecialEffectPresentationOrder();
             await ArrivalEquipmentProbe.CheckArrivalPresentation();
@@ -48,6 +62,7 @@ public partial class Probe : Node
             await ChuWaiKeywordProbe.Check();
             await XingBaoQiLiuZhanProbe.Check();
             await ZhuLeiResolutionProbe.Check();
+            await ExtraFusionMaterialReturnProbe.Check();
             await ZhuLeiFusionEffectsProbe.Check();
             await SeenAndRecallProbe.Check();
             await YiCunJiaProbe.Check();
@@ -58,6 +73,21 @@ public partial class Probe : Node
             await YiXiangMingLinkProbe.Check();
             await XyzProbe.Check();
             await YiXiangMingInvitationProbe.Check();
+            await CardRuleRegressionProbe.Check();
+            await MultiplayerFlowProbe.Check();
+            await SynchroAndBeiManProbe.Check();
+            await CardAvailabilityProbe.Check();
+            await RunStartCardsProbe.Check();
+            await MythCompositeProbe.Check();
+            await MythMutationProbe.Check();
+            MythCardRewardsProbe.Check();
+            LocalizationProbe.Check();
+            await IntentTheftProbe.Check();
+            await ZhuaYinIntentCancelProbe.Check();
+            await MonsterRevivalProbe.Check();
+            await LinkedEnemyCopyProbe.Check();
+            IntentForecastProbe.Check();
+            PetAllyProbe.Check();
             var copyData = new SelectSpecialCardMod.Scripts.Intent.MonsterMoveCard();
             copyData.EffectSnapshot = System.Text.Json.JsonSerializer.Serialize(new SelectSpecialCardMod.Scripts.Intent.MonsterEffectSnapshot { BlockKnown = true });
             if (copyData.EffectSnapshot.Length == 0) throw new System.Exception("Snapshot property failed.");
@@ -113,7 +143,7 @@ public partial class Probe : Node
         CheckDesired(0); // 额外怪兽本身仍不能反过来产生补给。
         var claw = new SelectSpecialCardMod.Scripts.Cards.Special.ZhuLeiZhuaYinCard().CanonicalKeywords.ToHashSet();
         var echo = new SelectSpecialCardMod.Scripts.Cards.Special.ZhuLeiCanXiangCard().CanonicalKeywords.ToHashSet();
-        if (!claw.Contains(CardKeyword.Unplayable) || !claw.Contains(CardKeyword.Exhaust) || !claw.Contains(CardKeyword.Retain)
+        if (!claw.Contains(CardKeyword.Unplayable) || claw.Contains(CardKeyword.Exhaust) || !claw.Contains(CardKeyword.Retain)
             || echo.Contains(CardKeyword.Retain) || !echo.Contains(CardKeyword.Exhaust))
             throw new Exception("Claw/Echo keyword configuration regressed.");
         GD.Print("PASS: Pearl World alone supplies all three Tearlaments fusion types, supply caps at three, extra monsters do not supply themselves, retrieval and Claw/Echo keywords stay correct.");
@@ -165,6 +195,21 @@ public partial class Probe : Node
                 if (!(await task).Activated || SpecialEffectPresentationProbe.EffectCalls != 1 || card.Pile != hand)
                     throw new Exception("Shared presentation did not preserve one activation and the hand: " + type.Name);
 
+                int finished = 0;
+                card.ExecutionFinished += source => { if (source == card) finished++; };
+                SpecialEffectPresentationProbe.ThrowEffect = true;
+                SpecialEffectPresentationProbe.Completion = new();
+                var failing = (Task<SelectSpecialCardMod.Scripts.Rules.ActivationResult>)execute.Invoke(null, [card, context, player])!;
+                SpecialEffectPresentationProbe.Completion.SetResult(true);
+                try
+                {
+                    await failing;
+                    throw new Exception("Special-effect failure was swallowed: " + type.Name);
+                }
+                catch (InvalidOperationException ex) when (ex.Message == "selection cleanup fixture") { }
+                finally { SpecialEffectPresentationProbe.ThrowEffect = false; }
+                if (finished != 1) throw new Exception("Failed special effect did not restore selection lifecycle: " + type.Name);
+
                 SpecialEffectPresentationProbe.EffectCalls = 0;
                 SpecialEffectPresentationProbe.Completion = new();
                 var interrupted = (Task<SelectSpecialCardMod.Scripts.Rules.ActivationResult>)execute.Invoke(null, [card, context, player])!;
@@ -180,8 +225,8 @@ public partial class Probe : Node
                     throw new Exception("Moved source card executed a stale effect: " + type.Name);
             }
         }
-        finally { h.UnpatchAll(h.Id); SpecialEffectPresentationProbe.Completion = null; }
-        GD.Print($"PASS: all {cardTypes.Length} special-effect cards await the shared presentation, execute once, and skip effects after interrupted presentation or source removal ({cardTypes.Length * 3} checks).");
+        finally { h.UnpatchAll(h.Id); SpecialEffectPresentationProbe.Completion = null; SpecialEffectPresentationProbe.ThrowEffect = false; }
+        GD.Print($"PASS: all {cardTypes.Length} special-effect cards await presentation, preserve exceptions with selection cleanup, and skip interrupted/stale effects ({cardTypes.Length * 4} checks).");
     }
 
     private static void CheckEquipmentVisualState()
@@ -279,8 +324,13 @@ public partial class Probe : Node
             var cancelled = await MegaCrit.Sts2.Core.Commands.CardSelectCmd.FromSimpleGrid(new MegaCrit.Sts2.Core.GameActions.Multiplayer.BlockingPlayerChoiceContext(), [onlyCandidate], owner,
                 manualPrefs with { Cancelable = true });
             if (cancelled.Any() || selector.Calls != 3) throw new Exception("Cancelable single-candidate choice was forced.");
+            var optionalPrefs = (MegaCrit.Sts2.Core.CardSelection.CardSelectorPrefs)factory.Invoke(null, [null, prompt, 0, 1])!;
+            if (!optionalPrefs.RequireManualConfirmation || optionalPrefs.MinSelect != 0 || optionalPrefs.MaxSelect != 1)
+                throw new Exception("Optional card selection lost manual confirmation or its skip range.");
+            var skipped = await MegaCrit.Sts2.Core.Commands.CardSelectCmd.FromSimpleGrid(new MegaCrit.Sts2.Core.GameActions.Multiplayer.BlockingPlayerChoiceContext(), [onlyCandidate], owner, optionalPrefs);
+            if (skipped.Any() || selector.Calls != 4) throw new Exception("Optional single-candidate choice did not wait for a player decision.");
         }
-        GD.Print("PASS: native automatic shortcut reproduced; one/exactly-enough mandatory candidates require selection, cancelable choice preserved (4 checks).");
+        GD.Print("PASS: native automatic shortcut reproduced; one/exactly-enough candidates require selection, and optional/cancelable choices preserve skipping (5 checks).");
     }
 
     private static async Task CheckPersistentExtraReturns()
@@ -344,9 +394,15 @@ public static class SpecialEffectPresentationProbe
 {
     public static TaskCompletionSource<bool>? Completion;
     public static int EffectCalls;
+    public static bool ThrowEffect;
     public static bool Present(ref Task<bool> __result) { __result = Completion!.Task; return false; }
     public static bool CanActivate(ref bool __result) { __result = true; return false; }
-    public static bool Effect(ref Task<bool> __result) { EffectCalls++; __result = Task.FromResult(true); return false; }
+    public static bool Effect(ref Task<bool> __result)
+    {
+        EffectCalls++;
+        __result = ThrowEffect ? Task.FromException<bool>(new InvalidOperationException("selection cleanup fixture")) : Task.FromResult(true);
+        return false;
+    }
 }
 
 public static class EquipmentHookProbe

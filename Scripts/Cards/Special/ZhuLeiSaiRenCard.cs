@@ -38,7 +38,6 @@ public class ZhuLeiSaiRenCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffe
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.SongMu,
         SelectTags.ZhuLeiRongHe,
-        SelectTags.ZhuLeiXiaJiGuaiShou,
         SelectTags.SpecialEffect,
     ];
 
@@ -50,7 +49,6 @@ public class ZhuLeiSaiRenCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffe
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLei),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiRongHe),
-        HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXiaJiGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.SpecialEffect),
     ];
 

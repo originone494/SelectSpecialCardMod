@@ -25,14 +25,13 @@ public abstract class YiXiangMingLinkCard : SelectSpecialBaseCard, IExtraDeckSum
     protected override IEnumerable<DynamicVar> CanonicalVars => [new DamageVar(25m, ValueProp.Move)];
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.YiXiangMing, SelectTags.YiXiangMingGuaiShou, SelectTags.Link1,
-        SelectTags.ExtraMonster, SelectTags.DengChang, SelectTags.SpecialEffect,
+        SelectTags.DengChang, SelectTags.SpecialEffect,
     ];
     public override IEnumerable<CardKeyword> CanonicalKeywords => [];
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.YiXiangMing),
         HoverTipFactory.FromKeyword(SelectKeywords.YiXiangMingGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.Link1),
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.DengChang),
         HoverTipFactory.FromKeyword(SelectKeywords.SpecialEffect),
         HoverTipFactory.FromPower<YiXiangMingZhiShiWuPower>(),
@@ -47,7 +46,7 @@ public abstract class YiXiangMingLinkCard : SelectSpecialBaseCard, IExtraDeckSum
 
     private static bool IsMaterial(CardModel card, Player player)
         => card.Owner == player && card.Type == CardType.Attack && card.Pile?.Type == PileType.Hand
-           && !card.HasBeenRemovedFromState;
+           && MaterialPayment.CanUseAsMaterial(card);
 
     public bool CanSummonFromExtraDeck(Player player)
         => CanResolve(player) && Pile?.Type == Entry.ExtraPile && !HasBeenRemovedFromState

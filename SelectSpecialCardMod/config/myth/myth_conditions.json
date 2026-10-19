@@ -1,0 +1,1126 @@
+{
+  "schema_version": 1,
+  "purpose": "Standalone playability and payment modules, not code reuse",
+  "kind_weights_percent": {
+    "none": 70,
+    "restriction": 15,
+    "payment": 15
+  },
+  "roll_order": "roll kind, then choose one module uniformly within that kind",
+  "allow_same_source_for_condition_and_effect": true,
+  "modules": [
+    {
+      "id": "cond.none",
+      "name_part": "异变",
+      "kind": "none",
+      "source": null,
+      "text": "",
+      "parameters": {},
+      "actions": [],
+      "implementation": "primitive_actions",
+      "adaptation_note": "通常抽到空条件；无描述，也不形成额外支付"
+    },
+    {
+      "id": "cond.ao_li_ha_gang_purge_buffs",
+      "name_part": "奥利哈刚",
+      "kind": "payment",
+      "source": {
+        "class": "AoLiHaGangDeJieJieCard",
+        "name": "奥利哈刚的结界",
+        "relative_path": "project_review/Scripts/Cards/Special/AoLiHaGangDeJieJieCard.cs"
+      },
+      "text": "打出时，失去所有增益。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "remove_all_buff_powers",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "完全参考原卡按 PowerType.Buff 删除所有增益，包括已有力量；同源组合产生奥利哈刚的奥利哈刚"
+    },
+    {
+      "id": "cond.attack_played_this_turn",
+      "name_part": "开门",
+      "kind": "restriction",
+      "source": {
+        "class": "CanHuanKaiMenCard",
+        "name": "灿幻·开门",
+        "relative_path": "project_review/Scripts/Cards/Special/CanHuanKaiMenCard.cs"
+      },
+      "text": "本回合至少打出过{count}张攻击牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_attacks_played_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "参考开门打出攻击后获得额外发动机会"
+    },
+    {
+      "id": "cond.attacks_played_many",
+      "name_part": "三极天龙",
+      "kind": "restriction",
+      "source": {
+        "class": "CanHuanChaoLongSanJiTianLongCard",
+        "name": "灿幻超龙·三极天龙",
+        "relative_path": "project_review/Scripts/Cards/Special/CanHuanChaoLongSanJiTianLongCard.cs"
+      },
+      "text": "本回合已打出{count}张攻击牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 4,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_attacks_played_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "提取原卡时机条件"
+    },
+    {
+      "id": "cond.banished_many",
+      "name_part": "多罪海",
+      "kind": "restriction",
+      "source": {
+        "class": "YiJieDuoZuiHaiCard",
+        "name": "异解·多罪海",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieDuoZuiHaiCard.cs"
+      },
+      "text": "除外堆至少有{count}张牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 5,
+          "max": 20,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_banished_count_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "剔除异解系列要求，保留原来的除外数量阶梯"
+    },
+    {
+      "id": "cond.discard_all_other",
+      "name_part": "狂战士",
+      "kind": "payment",
+      "source": {
+        "class": "KuangZhanShiZhiHunCard",
+        "name": "狂战士之魂",
+        "relative_path": "project_review/Scripts/Cards/Special/KuangZhanShiZhiHunCard.cs"
+      },
+      "text": "打出时，丢弃所有其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_discard_all_other_hand",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来源狂战士之魂的清空手牌代价"
+    },
+    {
+      "id": "cond.discard_attacks",
+      "name_part": "残响",
+      "kind": "payment",
+      "source": {
+        "class": "ZhuLeiCanXiangCard",
+        "name": "珠泪·残响",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiCanXiangCard.cs"
+      },
+      "text": "打出时，丢弃{count}张其他攻击牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_discard_other_type",
+          "args": [
+            "Attack",
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "提取源卡丢弃攻击牌作为前置支付"
+    },
+    {
+      "id": "cond.discard_many",
+      "name_part": "反响",
+      "kind": "restriction",
+      "source": {
+        "class": "ZhuLeiFanXiangCard",
+        "name": "珠泪·反响",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiFanXiangCard.cs"
+      },
+      "text": "弃牌堆至少有{count}张牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_discard_count_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从弃牌堆回收源效果抽取通用门槛"
+    },
+    {
+      "id": "cond.discard_one_bei_man",
+      "name_part": "杯满",
+      "kind": "payment",
+      "source": {
+        "class": "BeiManDeCanHuanZhuangCard",
+        "name": "杯满的灿幻庄",
+        "relative_path": "project_review/Scripts/Cards/Special/BeiManDeCanHuanZhuangCard.cs"
+      },
+      "text": "打出时，丢弃1张其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_discard_other",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "参考杯满检索后丢弃手牌；时序改成先支付"
+    },
+    {
+      "id": "cond.discard_one_gu_dong",
+      "name_part": "鼓动",
+      "kind": "payment",
+      "source": {
+        "class": "ZhuLeiGuDongCard",
+        "name": "珠泪·鼓动",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiGuDongCard.cs"
+      },
+      "text": "打出时，丢弃1张其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_discard_other",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "参考珠泪鼓动解除敌方增益后丢弃一张卡"
+    },
+    {
+      "id": "cond.discard_one_sai_ren",
+      "name_part": "塞壬",
+      "kind": "payment",
+      "source": {
+        "class": "ZhuLeiSaiRenCard",
+        "name": "珠泪·塞壬",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiSaiRenCard.cs"
+      },
+      "text": "打出时，丢弃1张其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_discard_other",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡将丢弃手牌换免费打出，改成普通支付"
+    },
+    {
+      "id": "cond.discard_one_yong_sheng",
+      "name_part": "咏圣",
+      "kind": "payment",
+      "source": {
+        "class": "KeMoYongShengCard",
+        "name": "刻魔·咏圣",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoYongShengCard.cs"
+      },
+      "text": "打出时，丢弃1张其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_discard_other",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡检索后丢弃一张牌，改成先支付的独立条件"
+    },
+    {
+      "id": "cond.discard_other",
+      "name_part": "魔女",
+      "kind": "payment",
+      "source": {
+        "class": "QiXingDaoMoNvCard",
+        "name": "七星道魔女",
+        "relative_path": "project_review/Scripts/Cards/Special/QiXingDaoMoNvCard.cs"
+      },
+      "text": "打出时，丢弃{count}张其他手牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_discard_other",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡丢弃手牌获得打出效果，改为独立支付"
+    },
+    {
+      "id": "cond.discard_two",
+      "name_part": "施舍",
+      "kind": "payment",
+      "source": {
+        "class": "TianShiDeShiSheCard",
+        "name": "天使的施舍",
+        "relative_path": "project_review/Scripts/Cards/Special/TianShiDeShiSheCard.cs"
+      },
+      "text": "打出时，丢弃{count}张其他手牌。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_discard_other",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从原卡抽3弃2中拆出代价，生成时先付后执行效果"
+    },
+    {
+      "id": "cond.draw_pile_many",
+      "name_part": "连栗炮",
+      "kind": "restriction",
+      "source": {
+        "class": "LianLiPaoGuDingShiCard",
+        "name": "连栗炮固定式",
+        "relative_path": "project_review/Scripts/Cards/Special/LianLiPaoGuDingShiCard.cs"
+      },
+      "text": "抽牌堆至少有{count}张牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_draw_count_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留原卡需要抽牌堆素材这一点，不保留方程"
+    },
+    {
+      "id": "cond.enemies_at_least",
+      "name_part": "图奥内拉",
+      "kind": "restriction",
+      "source": {
+        "class": "YiJieTuAoNeiLaCard",
+        "name": "异解·图奥内拉",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieTuAoNeiLaCard.cs"
+      },
+      "text": "敌人至少有{count}名时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_enemy_count_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把原卡多敌免单条件转成出牌条件"
+    },
+    {
+      "id": "cond.enemy_attack_intent",
+      "name_part": "奈落",
+      "kind": "restriction",
+      "source": {
+        "class": "YiJieNaiLuoCard",
+        "name": "异解·奈落",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieNaiLuoCard.cs"
+      },
+      "text": "有敌人准备攻击时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_enemy_attack_intent",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把原卡有攻击意图免单条件转成出牌条件"
+    },
+    {
+      "id": "cond.enemy_has_block",
+      "name_part": "神圣棺",
+      "kind": "restriction",
+      "source": {
+        "class": "KeMoShenShengGuanCard",
+        "name": "刻魔·神圣棺",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoShenShengGuanCard.cs"
+      },
+      "text": "有敌人拥有格挡时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_enemy_has_block",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "取自装备后对有格挡目标伤害翻倍的判定"
+    },
+    {
+      "id": "cond.enemy_low_health",
+      "name_part": "预取身",
+      "kind": "restriction",
+      "source": {
+        "class": "JiaShiZhenJieYuQuShenCard",
+        "name": "假世真界预取身",
+        "relative_path": "project_review/Scripts/Cards/Special/JiaShiZhenJieYuQuShenCard.cs"
+      },
+      "text": "有敌人的生命不高于{percent}%时才能打出。",
+      "parameters": {
+        "percent": {
+          "min": 20,
+          "max": 45,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_enemy_hp_below_percent",
+          "args": [
+            "$percent"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把原卡敌人低血量条件转成出牌门槛"
+    },
+    {
+      "id": "cond.exhaust_all_other",
+      "name_part": "左腕",
+      "kind": "payment",
+      "source": {
+        "class": "ZuoWanDeDaiJiaCard",
+        "name": "左腕的代价",
+        "relative_path": "project_review/Scripts/Cards/Special/ZuoWanDeDaiJiaCard.cs"
+      },
+      "text": "打出时，消耗所有其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_exhaust_all_other_hand",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡的清空手牌并检索，拆开代价和检索"
+    },
+    {
+      "id": "cond.exhaust_attacks",
+      "name_part": "大义贼",
+      "kind": "payment",
+      "source": {
+        "class": "TianXiaDuBuDeDaYiZeiCard",
+        "name": "天下独/步的大义贼",
+        "relative_path": "project_review/Scripts/Cards/Special/TianXiaDuBuDeDaYiZeiCard.cs"
+      },
+      "text": "打出时，消耗{count}张其他攻击牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_exhaust_other_type",
+          "args": [
+            "Attack",
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡以两张攻击换0费，抽作独立支付"
+    },
+    {
+      "id": "cond.exhaust_discard",
+      "name_part": "俱舍",
+      "kind": "payment",
+      "source": {
+        "class": "ZhuLeiJuSheCard",
+        "name": "珠泪·俱舍",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiJuSheCard.cs"
+      },
+      "text": "打出时，消耗弃牌堆的{count}张牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_exhaust_from_discard",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来自俱舍通过消耗弃牌堆卡使本卡免费的方式"
+    },
+    {
+      "id": "cond.exhaust_draw_top",
+      "name_part": "连栗炮",
+      "kind": "payment",
+      "source": {
+        "class": "LianLiPaoGuDingShiCard",
+        "name": "连栗炮固定式",
+        "relative_path": "project_review/Scripts/Cards/Special/LianLiPaoGuDingShiCard.cs"
+      },
+      "text": "打出时，消耗抽牌堆顶的{count}张牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_exhaust_draw_top",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "去掉两条复杂的卡费方程，保留消耗素材"
+    },
+    {
+      "id": "cond.exhaust_many",
+      "name_part": "俱舍",
+      "kind": "restriction",
+      "source": {
+        "class": "ZhuLeiJuSheCard",
+        "name": "珠泪·俱舍",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiJuSheCard.cs"
+      },
+      "text": "消耗堆至少有{count}张牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_exhaust_count_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "参考从弃牌堆消耗素材的源卡资源前置"
+    },
+    {
+      "id": "cond.exhaust_other_hand",
+      "name_part": "现世",
+      "kind": "payment",
+      "source": {
+        "class": "XianShiDuanLiCard",
+        "name": "现世断离",
+        "relative_path": "project_review/Scripts/Cards/Special/XianShiDuanLiCard.cs"
+      },
+      "text": "打出时，消耗{count}张其他手牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_exhaust_other_hand",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来自现世断离的消耗手牌"
+    },
+    {
+      "id": "cond.exhaust_other_xiao_shi_jie",
+      "name_part": "小世界",
+      "kind": "payment",
+      "source": {
+        "class": "XiaoShiJieCard",
+        "name": "小世界",
+        "relative_path": "project_review/Scripts/Cards/Special/XiaoShiJieCard.cs"
+      },
+      "text": "打出时，消耗1张其他手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_exhaust_other_hand",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把小世界先消耗手牌A的成本抽成独立条件；三段匹配检索被简化成随机生成"
+    },
+    {
+      "id": "cond.exile_from_exhaust",
+      "name_part": "怜歌",
+      "kind": "payment",
+      "source": {
+        "class": "KeMoLianGeCard",
+        "name": "刻魔·怜歌",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoLianGeCard.cs"
+      },
+      "text": "打出时，除外消耗堆的1张牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_banish_from_exhaust",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "参考怜歌时机的除外消耗堆卡牌，取消刻魔限制"
+    },
+    {
+      "id": "cond.exile_other_hand",
+      "name_part": "幽世",
+      "kind": "payment",
+      "source": {
+        "class": "YouShiDuanLiCard",
+        "name": "幽世断离",
+        "relative_path": "project_review/Scripts/Cards/Special/YouShiDuanLiCard.cs"
+      },
+      "text": "打出时，除外{count}张其他手牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_banish_other_hand",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来自幽世断离的手牌除外操作"
+    },
+    {
+      "id": "cond.hand_at_least",
+      "name_part": "左腕",
+      "kind": "restriction",
+      "source": {
+        "class": "ZuoWanDeDaiJiaCard",
+        "name": "左腕的代价",
+        "relative_path": "project_review/Scripts/Cards/Special/ZuoWanDeDaiJiaCard.cs"
+      },
+      "text": "手牌至少有{count}张时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 4,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_hand_count_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "直接沿用左腕的代价的手牌数量条件"
+    },
+    {
+      "id": "cond.hand_costly",
+      "name_part": "七星道法师",
+      "kind": "restriction",
+      "source": {
+        "class": "QiXingDaoFaShiCard",
+        "name": "七星道法师",
+        "relative_path": "project_review/Scripts/Cards/Special/QiXingDaoFaShiCard.cs"
+      },
+      "text": "手牌中有费用至少{cost}的牌时才能打出。",
+      "parameters": {
+        "cost": {
+          "min": 2,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_hand_card_min_cost",
+          "args": [
+            "$cost"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "提取手牌高费牌判定"
+    },
+    {
+      "id": "cond.hand_two_attacks",
+      "name_part": "大义贼",
+      "kind": "restriction",
+      "source": {
+        "class": "TianXiaDuBuDeDaYiZeiCard",
+        "name": "天下独/步的大义贼",
+        "relative_path": "project_review/Scripts/Cards/Special/TianXiaDuBuDeDaYiZeiCard.cs"
+      },
+      "text": "手牌中至少有{count}张其他攻击牌时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_other_attacks_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从以攻击牌换取免费发动的要求改写"
+    },
+    {
+      "id": "cond.has_minion",
+      "name_part": "大义贼",
+      "kind": "restriction",
+      "source": {
+        "class": "TianXiaDuBuDeDaYiZeiCard",
+        "name": "天下独/步的大义贼",
+        "relative_path": "project_review/Scripts/Cards/Special/TianXiaDuBuDeDaYiZeiCard.cs"
+      },
+      "text": "场上有爪牙时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_has_enemy_minion",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡消灭所有爪牙的特殊效果可作为发动门槛"
+    },
+    {
+      "id": "cond.lose_health",
+      "name_part": "狂战士",
+      "kind": "payment",
+      "source": {
+        "class": "KuangZhanShiZhiHunCard",
+        "name": "狂战士之魂",
+        "relative_path": "project_review/Scripts/Cards/Special/KuangZhanShiZhiHunCard.cs"
+      },
+      "text": "打出时，失去{hp}点生命。",
+      "parameters": {
+        "hp": {
+          "min": 1,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_lose_hp",
+          "args": [
+            "$hp"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来源狂战士之魂先失去生命的代价"
+    },
+    {
+      "id": "cond.lose_health_countdown",
+      "name_part": "倒计时",
+      "kind": "payment",
+      "source": {
+        "class": "ZhongYanDeDaoJiShiCard",
+        "name": "终焉的倒计时",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhongYanDeDaoJiShiCard.cs"
+      },
+      "text": "打出时，失去{hp}点生命。",
+      "parameters": {
+        "hp": {
+          "min": 2,
+          "max": 7,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_lose_hp",
+          "args": [
+            "$hp"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来源终焉倒计时失去生命的代价，独立命名"
+    },
+    {
+      "id": "cond.lose_health_diao_yin",
+      "name_part": "调音",
+      "kind": "payment",
+      "source": {
+        "class": "YiXiangMingDiaoYinCard",
+        "name": "异响鸣·调音",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingDiaoYinCard.cs"
+      },
+      "text": "打出时，失去{hp}点生命。",
+      "parameters": {
+        "hp": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_lose_hp",
+          "args": [
+            "$hp"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从调音第二项先失去生命的效果中独立提取"
+    },
+    {
+      "id": "cond.lose_health_jue_ze",
+      "name_part": "抉择",
+      "kind": "payment",
+      "source": {
+        "class": "YiXiangMingJueZeCard",
+        "name": "异响鸣·抉择",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingJueZeCard.cs"
+      },
+      "text": "打出时，失去{hp}点生命。",
+      "parameters": {
+        "hp": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_lose_hp",
+          "args": [
+            "$hp"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从抉择第二项先失去生命的效果中独立提取，允许与抉择第一项的回复抽牌组合"
+    },
+    {
+      "id": "cond.lose_health_qing_zhu",
+      "name_part": "倾注",
+      "kind": "payment",
+      "source": {
+        "class": "YiXiangMingQingZhuCard",
+        "name": "异响鸣·倾注",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingQingZhuCard.cs"
+      },
+      "text": "打出时，失去{hp}点生命。",
+      "parameters": {
+        "hp": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "pay_lose_hp",
+          "args": [
+            "$hp"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从倾注第二项先失去生命的效果中独立提取"
+    },
+    {
+      "id": "cond.no_artifact",
+      "name_part": "圣结界",
+      "kind": "restriction",
+      "source": {
+        "class": "JueDuiMoFaShengJieJieCard",
+        "name": "绝对魔法圣结界",
+        "relative_path": "project_review/Scripts/Cards/Special/JueDuiMoFaShengJieJieCard.cs"
+      },
+      "text": "没有人工制品时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_no_artifact",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "源卡在没有人工制品时获得一层"
+    },
+    {
+      "id": "cond.no_attack_in_hand",
+      "name_part": "赞圣",
+      "kind": "restriction",
+      "source": {
+        "class": "KeMoZanShengCard",
+        "name": "刻魔·赞圣",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoZanShengCard.cs"
+      },
+      "text": "没有其他攻击牌时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_no_other_attacks",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "舍弃光恶魔系列判定，保留无其他攻击牌门槛"
+    },
+    {
+      "id": "cond.no_other_attack_in_hand",
+      "name_part": "欣嫩谷",
+      "kind": "restriction",
+      "source": {
+        "class": "YiJieXinNenGuCard",
+        "name": "异解·欣嫩谷",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieXinNenGuCard.cs"
+      },
+      "text": "手牌没有其他攻击牌时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_no_other_attacks",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把源卡的免单条件转化为出牌门槛"
+    },
+    {
+      "id": "cond.other_attack_in_hand",
+      "name_part": "谢屋尔",
+      "kind": "restriction",
+      "source": {
+        "class": "YiJieXieWuErCard",
+        "name": "异解·谢屋尔",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieXieWuErCard.cs"
+      },
+      "text": "手牌有其他攻击牌时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_other_card_type",
+          "args": [
+            "Attack"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把源卡的免单条件转化为出牌门槛"
+    },
+    {
+      "id": "cond.other_skill_in_hand",
+      "name_part": "双叉天龙",
+      "kind": "restriction",
+      "source": {
+        "class": "CanHuanShengLongShuangChaTianLongCard",
+        "name": "灿幻升龙·双叉天龙",
+        "relative_path": "project_review/Scripts/Cards/Special/CanHuanShengLongShuangChaTianLongCard.cs"
+      },
+      "text": "手牌有其他技能牌时才能打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "require_other_card_type",
+          "args": [
+            "Skill"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "参考原卡可消耗手牌技能牌的发动条件"
+    },
+    {
+      "id": "cond.own_power_present",
+      "name_part": "巫女",
+      "kind": "restriction",
+      "source": {
+        "class": "ShengJieJieDeWuNvCard",
+        "name": "圣结界的巫女",
+        "relative_path": "project_review/Scripts/Cards/Special/ShengJieJieDeWuNvCard.cs"
+      },
+      "text": "你拥有至少{count}种能力时才能打出。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "require_own_power_types_at_least",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将特定圣结界能力要求转成通用能力数量"
+    },
+    {
+      "id": "cond.return_banished_to_draw",
+      "name_part": "黄泉国",
+      "kind": "payment",
+      "source": {
+        "class": "YiJieHuangQuanGuoCard",
+        "name": "异解·黄泉国",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieHuangQuanGuoCard.cs"
+      },
+      "text": "打出时，将除外堆1张牌洗回抽牌堆。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_return_banished_to_draw",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡可把异解从除外堆返回抽牌堆，取消系列要求"
+    },
+    {
+      "id": "cond.return_exhaust_to_draw",
+      "name_part": "落泪之日",
+      "kind": "payment",
+      "source": {
+        "class": "KeMoLuoLeiRiZiCard",
+        "name": "刻魔·落泪之日",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoLuoLeiRiZiCard.cs"
+      },
+      "text": "打出时，将消耗堆1张牌洗回抽牌堆。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "pay_return_exhaust_to_draw",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡回收刻魔素材后触发群伤，取消系列要求"
+    }
+  ]
+}

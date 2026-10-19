@@ -29,7 +29,7 @@ public static class KeMoLinkSummon
         new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_LINK_MATERIAL_VALUE");
 
     public static bool CanPay(IReadOnlyList<CardModel> pool, int targetValue, int minCards = 2, bool requireGuangEMo = false)
-        => Feasible(pool.Distinct().ToList(), targetValue, minCards, requireGuangEMo);
+        => Feasible(pool.Where(MaterialPayment.CanUseAsMaterial).Distinct().ToList(), targetValue, minCards, requireGuangEMo);
 
     /// <summary>逐张选择；两种计数都能完成召唤时，让玩家明确选择计数方式。取消不支付素材。</summary>
     public static async Task<List<CardModel>?> SelectMaterial(
@@ -43,7 +43,7 @@ public static class KeMoLinkSummon
 
         while (remaining > 0 || minRemaining > 0)
         {
-            var available = pool.Distinct().Where(c => !chosen.Contains(c)).ToList();
+            var available = pool.Distinct().Where(c => MaterialPayment.CanUseAsMaterial(c) && !chosen.Contains(c)).ToList();
             var valuesFor = new Dictionary<CardModel, List<int>>();
             foreach (var card in available)
             {

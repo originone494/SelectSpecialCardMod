@@ -33,7 +33,6 @@ public class ZhuLeiMeiLuoCard : SelectSpecialBaseCard, ISongMuCard
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.SongMu,
         SelectTags.ZhuLeiRongHe,
-        SelectTags.ZhuLeiXiaJiGuaiShou,
     ];
 
     // 卡面不再注入「珠泪融合」关键字（送墓文案直接写在描述里）；机制判据走标签，悬停里保留关键字说明
@@ -44,7 +43,6 @@ public class ZhuLeiMeiLuoCard : SelectSpecialBaseCard, ISongMuCard
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLei),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiRongHe),
-        HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXiaJiGuaiShou),
     ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)

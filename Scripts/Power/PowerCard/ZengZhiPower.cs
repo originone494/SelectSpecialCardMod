@@ -20,9 +20,9 @@ namespace SelectSpecialCardMod.Scripts.Power;
 //
 // 职责：① 每回合把它重新压成"眩晕"（无攻击意图、不行动）；
 //       ② 玩家回合开始、游戏重掷敌人行动后，再压一次意图；
-//       ③ 同侧其他敌人死亡时，自己也死亡。
+//       ③ 对应本体死亡时，自己也死亡。
 [RegisterPower]
-public class ZengZhiPower : SelectSpecialBasePower
+public class ZengZhiPower : LinkedEnemyCopyPower
 {
     // 纯后台标记：不参与 buff/debuff 语义，也不显示在 UI 上
     public override PowerType Type => PowerType.None;
@@ -58,15 +58,4 @@ public class ZengZhiPower : SelectSpecialBasePower
         }
     }
 
-    public override async Task AfterDeath(
-        PlayerChoiceContext choiceContext,
-        Creature creature,
-        bool wasRemovalPrevented,
-        float deathAnimLength)
-    {
-        if (wasRemovalPrevented || creature == Owner || !Owner.IsAlive) return;
-        if (!creature.IsMonster || creature.Side != Owner.Side) return;
-
-        await CreatureCmd.Kill(Owner);
-    }
 }

@@ -75,8 +75,11 @@ public static class XyzMaterials
             foreach (var card in selected)
             {
                 if (CombatManager.Instance.IsOverOrEnding || !host.IsValidMaterial(card)) return false;
+                // 能力模型已由框架注册；通过工厂克隆可变实例，不能直接构造并重复注册同一 ID。
+                var binding = ModelCapabilityRegistry.Create<XyzMaterialCapability>();
+                binding.Group = host.MaterialGroupId;
                 foreach (var stale in card.Capabilities().All.OfType<XyzMaterialCapability>().ToList()) stale.RemoveFromOwner();
-                card.AddCapability(new XyzMaterialCapability { Group = host.MaterialGroupId });
+                card.AddCapability(binding);
                 Entering.Add(card);
                 CardPileAddResult result;
                 try { result = await CardPileCmd.Add(card, Entry.XyzMaterialPile, skipVisuals: true); }

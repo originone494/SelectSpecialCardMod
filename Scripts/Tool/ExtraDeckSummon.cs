@@ -20,6 +20,7 @@ using STS2RitsuLib.Networking.ManagedActions;
 using System.Text.Json;
 using STS2RitsuLib.CardPiles;
 using STS2RitsuLib.CardPiles.Nodes;
+using SelectSpecialCardMod.Scripts.Custom;
 
 namespace SelectSpecialCardMod.Scripts.Tool;
 
@@ -56,7 +57,12 @@ public static class ExtraDeckSummonHook
         Deserialize: b => JsonSerializer.Deserialize<SummonRequest>(b) ?? throw new JsonException("Missing summon request."),
         Execute: async ctx =>
         {
-            try { if (ctx.Message.Version == 1) await SummonFlowAsync(ctx.PlayerChoiceContext, ctx.Player); }
+            try
+            {
+                if (ctx.Message.Version == 1)
+                    await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Run(
+                        () => SummonFlowAsync(ctx.PlayerChoiceContext, ctx.Player));
+            }
             finally { if (LocalContext.IsMe(ctx.Player)) _pendingRequest = false; }
         },
         ActionType: GameActionType.Combat);
@@ -89,7 +95,29 @@ public static class ExtraDeckSummonHook
             .Where(c => c.Owner == player
                         && c is IExtraDeckSummonCard s
                         && s.CanSummonFromExtraDeck(player))
+            .OrderBy(CardFrameGroup)
+            .ThenBy(c => c.Id.ToString(), StringComparer.Ordinal)
             .ToList();
+    }
+
+    // 相同卡框归在一起：融合、同调、超量、连接、灵摆，其余放在最后。
+    private static int CardFrameGroup(CardModel card)
+    {
+        var tags = card.Tags;
+        if (tags.Contains(SelectTags.RongHeGuaiShou)) return 0;
+        if (tags.Contains(SelectTags.TongBuGuaiShou)) return 1;
+        if (tags.Contains(SelectTags.ChaoLiangGuaiShou)) return 2;
+        if (CardClassification.LinkRating(card) > 0) return 3;
+        if (tags.Contains(SelectTags.LingBaiGuaiShou)) return 4;
+        return 5;
+    }
+
+    private static int CompareCardFaces(CardModel left, CardModel right)
+    {
+        int group = CardFrameGroup(left).CompareTo(CardFrameGroup(right));
+        if (group != 0) return group;
+        int title = StringComparer.Ordinal.Compare(left.Title, right.Title);
+        return title != 0 ? title : StringComparer.Ordinal.Compare(left.Id.ToString(), right.Id.ToString());
     }
 
     /// <summary>现在能不能召唤（额外堆高亮的判据）。</summary>
@@ -162,7 +190,9 @@ public static class ExtraDeckSummonHook
                 ctx,
                 eligible,
                 player,
-                new CardSelectorPrefs(SummonPrompt, 0, 1) { RequireManualConfirmation = true })).FirstOrDefault();
+                // 卡名排序只用于本地显示，联机选择索引仍使用稳定的卡牌 ID 顺序。
+                new CardSelectorPrefs(SummonPrompt, 0, 1)
+                { RequireManualConfirmation = true, Comparison = CompareCardFaces })).FirstOrDefault();
             if (picked is not IExtraDeckSummonCard summon) return;
             // 选完再判一次：期间手牌可能已经变了
             if (!ReferenceEquals(player.Creature.CombatState, combat) || !CanSummonAny(player)

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Godot;
 using MegaCrit.Sts2.Core.CardSelection;
 using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
@@ -12,6 +13,7 @@ using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.HoverTips;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Nodes.Cards;
 using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Pool;
@@ -86,9 +88,9 @@ public class BeiManDeCanHuanZhuangCard : SelectSpecialBaseCard
         if (side == CombatSide.Player) await RefreshZhuChang(combatState);
     }
 
-    // 龙族同调卡：龙族 + 同调 标记
+    // 龙族同步怪兽：龙族 + 同步怪兽 标记
     private static Func<CardModel, bool> IsDragonSynchroCard
-        => c => c.Tags.Contains(SelectTags.LongZu) && c.Tags.Contains(SelectTags.TongBu);
+        => c => c.Tags.Contains(SelectTags.LongZu) && c.Tags.Contains(SelectTags.TongBuGuaiShou);
 
     private static LocString BuffPrompt { get; } = new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_BEI_MAN_DE_CAN_HUAN_ZHUANG_BUFF");
 
@@ -177,19 +179,30 @@ public class BeiManDeCanHuanZhuangCard : SelectSpecialBaseCard
 
     private async Task BuffDragonSynchro(PlayerChoiceContext choiceContext)
     {
-        if (Owner == null || CombatState == null) return;
-        if (!PileType.Hand.GetPile(Owner).Cards.Any(IsDragonSynchroCard)) return;
+        if (Owner == null || CombatState == null || CombatManager.Instance.IsOverOrEnding) return;
+        var player = Owner;
+        var combat = CombatState;
+        var hand = PileType.Hand.GetPile(player);
+        bool IsTarget(CardModel candidate) => candidate.Owner == player && candidate.CombatState == combat
+            && candidate.Pile == hand && !candidate.HasBeenRemovedFromState && IsDragonSynchroCard(candidate);
+        if (!hand.Cards.Any(IsTarget)) return;
 
         CardModel? target = (await CardSelectCmd.FromHand(
             prefs: CardPrefs(this, BuffPrompt, 1, 1),
             context: choiceContext,
-            player: Owner,
-            filter: IsDragonSynchroCard,
-            source: this)).FirstOrDefault();
+            player: player,
+            filter: IsTarget,
+            // 被消耗触发不保证之后还会有本卡的打出结束通知。
+            source: null!)).FirstOrDefault();
 
-        if (target == null) return;
+        if (target == null || CombatState != combat || player.Creature.CombatState != combat
+            || CombatManager.Instance.IsOverOrEnding || !IsTarget(target)) return;
 
-        // 伤害翻倍
+        // 修改实际打出读取的伤害，同时立即刷新卡面预览。
         target.DynamicVars.Damage.BaseValue *= 2m;
+        target.DynamicVars.ClearPreview();
+        target.UpdateDynamicVarPreview(CardPreviewMode.Normal, target.CurrentTarget, target.DynamicVars);
+        var node = NCard.FindOnTable(target, PileType.Hand);
+        if (node != null && GodotObject.IsInstanceValid(node)) node.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
     }
 }

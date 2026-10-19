@@ -46,9 +46,10 @@ public static class YiJieExileBag
             || c.Tags.Contains(SelectTags.YiJieGuaiShou)
             || c.Tags.Contains(SelectTags.YiJieMoXian);
 
-        var yiJie = ModelDb.AllCards.Where(IsYiJie).ToList();
+        var yiJie = ModelDb.AllCards.Where(c => IsYiJie(c) && CardAvailability.IsAllowed(c, player.RunState)).ToList();
         // 填充池排除不可获取卡（Token 衍生卡/图鉴隐藏机制卡/怪物卡模板，判据统一在 SelectToolCmd）
-        var fillerPool = ModelDb.AllCards.Where(c => !IsYiJie(c) && !SelectToolCmd.IsNonObtainable(c)).ToList();
+        var fillerPool = ModelDb.AllCards.Where(c => !IsYiJie(c) && !SelectToolCmd.IsNonObtainable(c)
+            && CardAvailability.IsAllowed(c, player.RunState)).ToList();
 
         var seq = new List<CardModel>(yiJie);
         int filler = yiJie.Count * FillerPerYiJieCard;

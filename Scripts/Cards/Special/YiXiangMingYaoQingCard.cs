@@ -19,7 +19,7 @@ public class YiXiangMingYaoQingCard : SelectSpecialBaseCard
 {
     public YiXiangMingYaoQingCard() : base(0, CardType.Skill, CardRarity.Ancient, TargetType.Self) { }
     protected override HashSet<CardTag> CanonicalTags => [SelectTags.YiXiangMing, SelectTags.YiXiangMingMoFa];
-    public override IEnumerable<CardKeyword> CanonicalKeywords => [];
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.YiXiangMing),
         HoverTipFactory.FromKeyword(SelectKeywords.YiXiangMingMoFa),
@@ -44,9 +44,10 @@ public class YiXiangMingYaoQingCard : SelectSpecialBaseCard
         if (combat == null || !CanContinue()) return;
         var one = combat.CreateCard<EffectOneCard>(Owner);
         var two = combat.CreateCard<EffectTwoCard>(Owner);
+        one.UseAppearanceOf(this);
+        two.UseAppearanceOf(this);
         one.EffectText = new LocString("cards", Id.Entry + ".option1").GetFormattedText();
         two.EffectText = new LocString("cards", Id.Entry + ".option2").GetFormattedText();
-        one.PortraitSourceClassName = two.PortraitSourceClassName = GetType().Name;
         // 邀请不沿用其他三张魔法的生命变化、无灵摆区时随机适用规则。
         var selected = await CardSelectCmd.FromChooseACardScreen(context, [one, two], Owner, canSkip: false);
         if (!CanContinue()) return;
@@ -63,7 +64,7 @@ public class YiXiangMingYaoQingCard : SelectSpecialBaseCard
         else if (selected == two && HasNonPendulumMonsterInHand())
         {
             var templates = ModelDb.AllCards.Where(IsYiXiangMingPendulumMonster)
-                .Where(c => !SelectToolCmd.IsNonObtainable(c) && !c.Tags.Contains(SelectTags.ExtraMonster))
+                .Where(c => !SelectToolCmd.IsNonObtainable(c) && !CardClassification.IsExtraMonster(c))
                 .GroupBy(c => c.Id).Select(g => g.First()).OrderBy(c => c.Id).ToList();
             if (templates.Count < 2) return;
             var candidates = templates.Select(c => combat.CreateCard(c, Owner)).ToList();

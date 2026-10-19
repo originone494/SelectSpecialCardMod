@@ -13,7 +13,6 @@ using MegaCrit.Sts2.Core.Localization.DynamicVars;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
 using SelectSpecialCardMod.Scripts.Base;
-using SelectSpecialCardMod.Scripts.Cards.Other;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Hook;
 using SelectSpecialCardMod.Scripts.Pool;
@@ -37,7 +36,6 @@ public class ZhuLeiLeiNuoHaTeCard : SelectSpecialBaseCard, ISongMuCard
         SelectTags.ZhuLei,
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.SongMu,
-        SelectTags.ZhuLeiXiaJiGuaiShou,
     ];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [
@@ -47,7 +45,6 @@ public class ZhuLeiLeiNuoHaTeCard : SelectSpecialBaseCard, ISongMuCard
         HoverTipFactory.FromKeyword(SelectKeywords.SongMu),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLei),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiGuaiShou),
-        HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXiaJiGuaiShou),
     ];
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
@@ -56,11 +53,11 @@ public class ZhuLeiLeiNuoHaTeCard : SelectSpecialBaseCard, ISongMuCard
         ArgumentNullException.ThrowIfNull(cardPlay.Target, "cardPlay.Target");
         await CreatureCmd.Damage(choiceContext, cardPlay.Target, DynamicVars.Damage.BaseValue, ValueProp.Move, Owner.Creature, this, cardPlay);
 
-        // 「检索」并丢弃1张「珠泪·雷诺哈特」以外的「珠泪下级怪兽」卡
+        // 「检索」并丢弃1张「珠泪·雷诺哈特」以外的「珠泪怪兽」卡
         await SelectToolCmd.RetrieverCard(
             choiceContext,
             Owner,
-            c => ZhuLeiFilter.IsLowerMonster(c)
+            c => ZhuLeiFilter.IsMonster(c)
                  && c is not ZhuLeiLeiNuoHaTeCard,
             p => p is SelectSpecialCardPool,
             1, true, source: this);
@@ -78,15 +75,8 @@ public class ZhuLeiLeiNuoHaTeCard : SelectSpecialBaseCard, ISongMuCard
         // ② 条件：手牌有「珠泪」卡（任意珠泪卡，含融合怪兽）
         if (!PileType.Hand.GetPile(player).Cards.Any(ZhuLeiFilter.IsCard)) return;
 
-        // ③ 是/否询问（网格 + 提示文本，复用「是」「否」辅助卡）
-        var shi = player.Creature.CombatState!.CreateCard<ShiCard>(player);
-        var fou = player.Creature.CombatState!.CreateCard<FouCard>(player);
-        CardModel? picked = (await CardSelectCmd.FromSimpleGrid(
-            ctx,
-            new List<CardModel> { shi, fou },
-            player,
-            CardPrefs(this, SongMuChoicePrompt, 1, 1))).FirstOrDefault();
-        if (picked is not ShiCard) return; // 否/取消 → 不发动
+        // ③ ①发动送墓；②不发动。
+        if (!await SelectToolCmd.AskYesNo(ctx, player, SongMuChoicePrompt, source: this)) return;
 
         // ④ 玩家一确认就记账：这样连锁里再丢掉一张同名卡时，它的送墓不会二次发动
         PerTurnOnce.Mark(player, onceKey);
@@ -97,7 +87,7 @@ public class ZhuLeiLeiNuoHaTeCard : SelectSpecialBaseCard, ISongMuCard
             context: ctx,
             player: player,
             filter: ZhuLeiFilter.IsCard,
-            source: this)).ToList();
+            source: null!)).ToList();
         if (selected.Count == 0) return;
 
         await CardCmd.Discard(ctx, selected[0]);

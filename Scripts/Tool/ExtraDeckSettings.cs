@@ -11,8 +11,27 @@ public static class ExtraDeckSettings
 
     public static void Register()
     {
+        CardAvailability.Register();
         RitsuLibFramework.RegisterModSettings(Entry.ModId, page => page
             .WithVisibleOnHostSurfaces(ModSettingsHostSurface.MainMenu | ModSettingsHostSurface.RunPause)
+            .AddSection("card_content", section => section
+                .WithTitle(Text("SELECT_SPECIAL_CARD_MOD_CARD_CONTENT_TITLE"))
+                .AddToggle("grant_duel_disk", Text("SELECT_SPECIAL_CARD_MOD_GRANT_DUEL_DISK"), CardAvailability.DuelDiskPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_GRANT_DUEL_DISK_DESC"))
+                .AddToggle("choose_special_card_at_start", Text("SELECT_SPECIAL_CARD_MOD_START_CARD"), CardAvailability.StartCardPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_START_CARD_DESC"))
+                .AddToggle("special_card_reward_at_start", Text("SELECT_SPECIAL_CARD_MOD_START_REWARD"), CardAvailability.StartRewardPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_START_REWARD_DESC"))
+                .AddToggle("myth_card_reward_at_start", Text("SELECT_SPECIAL_CARD_MOD_START_MYTH_REWARD"), CardAvailability.StartMythRewardPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_START_MYTH_REWARD_DESC"))
+                .AddToggle("grant_myth_card_at_start", Text("SELECT_SPECIAL_CARD_MOD_START_MYTH_CARD"), CardAvailability.MythCardPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_START_MYTH_CARD_DESC"))
+                .AddToggle("all_card_rewards_special", Text("SELECT_SPECIAL_CARD_MOD_SPECIAL_CARD_REWARDS"), CardAvailability.SpecialRewardsPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_SPECIAL_CARD_REWARDS_DESC"))
+                .AddToggle("randomize_all_card_rewards", Text("SELECT_SPECIAL_CARD_MOD_RANDOM_CARD_REWARDS"), CardAvailability.RandomRewardsPreference,
+                    Text("SELECT_SPECIAL_CARD_MOD_RANDOM_CARD_REWARDS_DESC"))
+                .AddToggle("only_yu_gi_oh", Text("SELECT_SPECIAL_CARD_MOD_ONLY_YU_GI_OH"), CardAvailability.Preference,
+                    Text("SELECT_SPECIAL_CARD_MOD_ONLY_YU_GI_OH_DESC")))
             .AddSection("extra_deck", section => section
                 .WithTitle(Text("SELECT_SPECIAL_CARD_MOD_EXTRA_DECK_SETTINGS_TITLE"))
                 .AddParagraph(

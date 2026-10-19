@@ -57,15 +57,17 @@ public class WangZhiGuanPower : SelectSpecialBasePower
         if (!card.Tags.Contains(SelectTags.HeLuSiGuaiShou)) return;
         if (CombatState == null) return;
 
-        Flash();
-
-        Creature? enemy = Owner.Player!.RunState.Rng.CombatTargets.NextItem(CombatState.HittableEnemies);
-        if (enemy == null) return;
-
-        for (int i = 0; i < Amount; i++)
+        var owner = Owner;
+        var combat = CombatState;
+        await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Schedule(async () =>
         {
-            // 逐次 await，保证多段伤害的结算顺序在锁步下两端一致
-            await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), enemy, 8m, ValueProp.Move, Owner, null, null);
-        }
+            if (Owner != owner || CombatState != combat || !owner.IsAlive || !owner.Powers.Contains(this)
+                || MegaCrit.Sts2.Core.Combat.CombatManager.Instance.IsOverOrEnding) return;
+            Flash();
+            Creature? enemy = owner.Player!.RunState.Rng.CombatTargets.NextItem(combat.HittableEnemies);
+            if (enemy == null) return;
+            for (int i = 0; i < Amount; i++)
+                await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), enemy, 8m, ValueProp.Move, owner, null, null);
+        });
     }
 }

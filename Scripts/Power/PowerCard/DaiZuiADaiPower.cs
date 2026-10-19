@@ -21,9 +21,9 @@ namespace SelectSpecialCardMod.Scripts.Power;
 //   · 玩家身上不再多出一个看不懂的 buff 图标。
 //
 // 职责：① 每回合把它重新压成"眩晕"；② 玩家回合开始、重掷行动后再压一次意图；
-//       ③ 复制品受到伤害时，把相同数值的伤害转给本体（Original）。
+//       ③ 复制品受到伤害时，把相同数值的伤害转给本体；④ 本体死亡时复制品死亡。
 [RegisterPower]
-public class DaiZuiADaiPower : SelectSpecialBasePower
+public class DaiZuiADaiPower : LinkedEnemyCopyPower
 {
     // 纯后台标记：不参与 buff/debuff 语义，也不显示在 UI 上
     public override PowerType Type => PowerType.None;
@@ -33,9 +33,6 @@ public class DaiZuiADaiPower : SelectSpecialBasePower
     public override PowerInstanceType InstanceType => PowerInstanceType.Instanced;
 
     protected override bool IsVisibleInternal => false;
-
-    // 被复制的那只敌人（本体）
-    public Creature? Original { get; set; }
 
     public override async Task BeforeSideTurnStart(
         PlayerChoiceContext choiceContext,

@@ -63,6 +63,7 @@ public static class ZhuLeiFusion
         var availableCards = PileType.Hand.GetPile(player).Cards
             .Concat(PileType.Discard.GetPile(player).Cards)
             .Concat(PileType.Play.GetPile(player).Cards)
+            .Where(MaterialPayment.CanUseAsMaterial)
             .Distinct()
             .ToList();
         if (availableCards.Count == 0) return;
@@ -178,7 +179,7 @@ public static class ZhuLeiFusion
         var currentPool = PileType.Hand.GetPile(player).Cards
             .Concat(PileType.Discard.GetPile(player).Cards).Concat(PileType.Play.GetPile(player).Cards).ToHashSet();
         if (template == null || picked.Pile?.Type != Entry.ExtraPile
-            || materials.Any(c => !currentPool.Contains(c) || c.HasBeenRemovedFromState)) return;
+            || materials.Any(c => !currentPool.Contains(c) || !MaterialPayment.CanUseAsMaterial(c))) return;
 
         // 支付前保留发动资格；入手牌登场连锁不能重入同名融合。
         Resolving[resolvingKey] = CombatManager.Instance.CurrentCombatId;
@@ -187,7 +188,8 @@ public static class ZhuLeiFusion
             foreach (var mat in materials.Distinct())
             {
                 if (CombatManager.Instance.IsOverOrEnding) return;
-                if (mat.Tags.Contains(SelectTags.ExtraMonster))
+                if (!MaterialPayment.CanUseAsMaterial(mat)) return;
+                if (CardClassification.IsExtraMonster(mat))
                 {
                     if (!await ExtraDeckSeries.ReturnExtraMonster(player, mat)) return;
                 }

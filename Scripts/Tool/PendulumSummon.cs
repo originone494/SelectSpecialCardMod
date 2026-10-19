@@ -97,7 +97,7 @@ public static class PendulumSummon
         // 原版攻击牌无须补星级或计算费用；模组怪兽使用真实星级，手牌阶段排除额外怪兽。
         bool vanilla = card.GetType().Assembly == typeof(CardModel).Assembly;
         if (!vanilla && (card is not SelectSpecialBaseCard { StarLevel: > 0 } monster
-            || (!fromExtra && card.Tags.Contains(SelectTags.ExtraMonster))
+            || (!fromExtra && CardClassification.IsExtraMonster(card))
             || monster.StarLevel <= System.Math.Min(leftScale, rightScale)
             || monster.StarLevel >= System.Math.Max(leftScale, rightScale))) return false;
 

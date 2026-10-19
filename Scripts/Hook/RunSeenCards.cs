@@ -22,6 +22,7 @@ using STS2RitsuLib.Networking.Sidecar;
 using STS2RitsuLib.RunData;
 using SelectSpecialCardMod.Scripts.Cards.Other;
 using SelectSpecialCardMod.Scripts.Intent;
+using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Hook;
 
@@ -85,7 +86,8 @@ public static class RunSeenCards
     }
 
     public static IReadOnlyList<ModelId> IdsFor(Player player)
-        => _history.Get(player).Cards.Select(Resolve).Where(IsCandidate).Select(c => c!.Id)
+        => _history.Get(player).Cards.Select(Resolve).Where(IsCandidate)
+            .Where(c => CardAvailability.IsAllowed(c!, player.RunState)).Select(c => c!.Id)
             .Distinct().OrderBy(id => id).ToList();
 
     internal static bool Merge(RunState run, ulong viewer, IEnumerable<string> ids)
@@ -167,7 +169,8 @@ public static class RunSeenCards
             else
             {
                 cards = (await SelectSpecialCardMod.Scripts.Tool.RunLifetime.Wait(synchronizer.WaitForRemoteChoice(player, choiceId), (RunState)player.RunState)).AsCanonicalCards()
-                    .Where(IsCandidate).DistinctBy(c => c.Id).OrderBy(c => c.Id).ToList();
+                    .Where(IsCandidate).Where(c => CardAvailability.IsAllowed(c, player.RunState))
+                    .DistinctBy(c => c.Id).OrderBy(c => c.Id).ToList();
             }
             Merge((RunState)player.RunState, player.NetId, cards.Select(c => c.Id.ToString()));
             return cards;

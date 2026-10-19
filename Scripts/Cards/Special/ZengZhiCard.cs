@@ -33,19 +33,14 @@ public class ZengZhiCard : SelectSpecialBaseCard
         // 所以先把它搬回手牌，结算完就不会再被送去弃牌堆/消耗堆。
         await CardPileCmd.Add(this, PileType.Hand);
 
-        if (cardPlay.Target?.Monster == null || CombatState == null) return;
+        if (cardPlay.Target?.Monster == null || !cardPlay.Target.IsAlive || CombatState == null) return;
 
         var source = cardPlay.Target;
-        var monster = source.Monster.CanonicalInstance.ToMutable();
 
         // 落点：优先占空闲槽位；入场后强制检查"不许挡住任何敌人"（见 CopySpawnSlot 注释）
         string? slot = CopySpawnSlot.PickSlot(CombatState);
 
-        var copy = await CreatureCmd.Add(
-            monster,
-            CombatState,
-            CombatSide.Enemy,
-            slot);
+        var copy = await EnemyCopySpawn.Add(source, CombatState, slot);
 
         CopySpawnSlot.EnsureClearOf(copy, source);
 
@@ -53,8 +48,11 @@ public class ZengZhiCard : SelectSpecialBaseCard
         await CreatureCmd.SetCurrentHp(copy, source.CurrentHp);
         await CreatureCmd.Stun(copy);
 
-        // 链接能力挂在**复制品自己**身上（Owner = 复制品），不需要再持有引用
-        var power = ModelDb.Power<ZengZhiPower>().ToMutable();
+        // 链接能力挂在复制品身上，并记录本次复制的具体本体。
+        var power = (ZengZhiPower)ModelDb.Power<ZengZhiPower>().ToMutable();
+        power.Original = source;
         await PowerCmd.Apply(choiceContext, power, copy, 1, Owner.Creature, this);
+        // 本体可能在异步入场／施加能力期间死亡，补上已经错过的死亡事件。
+        if (source.IsDead && copy.IsAlive) await CreatureCmd.Kill(copy);
     }
 }

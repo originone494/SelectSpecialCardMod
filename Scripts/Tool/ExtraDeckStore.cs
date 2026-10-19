@@ -47,7 +47,8 @@ public static class ExtraDeckStore
     {
         var list = _selected ??= Load();
         if (!_writable) return false;
-        if (!card.Tags.Contains(SelectTags.ExtraMonster)) return false;
+        if (!CardClassification.IsExtraMonster(card)) return false;
+        if (!CardAvailability.IsAllowedInConfiguration(card)) return false;
         if (CountOf(card) >= MaxCopiesPerName) return false;
         if (list.Count >= MaxCards) return false;
         list.Add(KeyOf(card));
@@ -79,7 +80,8 @@ public static class ExtraDeckStore
     /// <summary>所有可选的「额外怪兽」（规范卡实例，按卡名排序）。</summary>
     public static List<CardModel> AvailableExtraMonsters()
         => ModelDb.AllCards
-            .Where(c => c.Tags.Contains(SelectTags.ExtraMonster))
+            .Where(CardAvailability.IsAllowedInConfiguration)
+            .Where(c => CardClassification.IsExtraMonster(c))
             .GroupBy(c => c.GetType())
             .Select(g => g.First())
             .OrderBy(c => c.Title, StringComparer.Ordinal)
@@ -117,7 +119,7 @@ public static class ExtraDeckStore
             GD.PushWarning($"[SelectSpecialCardMod] 额外卡组读取失败，已保留原文件并禁止覆盖：{e.Message}");
         }
         Unresolved.AddRange(list.Where(k => FindByKey(k) == null));
-        return list.Select(FindByKey).OfType<CardModel>().Where(c => c.Tags.Contains(SelectTags.ExtraMonster))
+        return list.Select(FindByKey).OfType<CardModel>().Where(c => CardClassification.IsExtraMonster(c))
             .GroupBy(c => c.Id).SelectMany(g => g.Take(MaxCopiesPerName)).Take(MaxCards).Select(KeyOf).ToList();
     }
 

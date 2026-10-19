@@ -39,7 +39,6 @@ public class ZhuLeiJuSheCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffec
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.SongMu,
         SelectTags.JuShe,
-        SelectTags.ZhuLeiXiaJiGuaiShou,
         SelectTags.SpecialEffect,
     ];
 
@@ -48,7 +47,6 @@ public class ZhuLeiJuSheCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffec
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.SongMu),
         HoverTipFactory.FromKeyword(SelectKeywords.JuShe),
-        HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXiaJiGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.SpecialEffect),
     ];
 

@@ -29,8 +29,10 @@ public class TianShiDeShiSheCard : SelectSpecialBaseCard
         await CardPileCmd.Draw(choiceContext, 3, Owner);
 
         // 弃2张牌（玩家选择）
+        int amount = Math.Min(2, PileType.Hand.GetPile(Owner).Cards.Count);
+        if (amount == 0) return;
         var selected = (await CardSelectCmd.FromHand(
-            prefs: CardPrefs(this, SelectionScreenPrompt, 2, 2),
+            prefs: CardPrefs(this, SelectionScreenPrompt, amount, amount),
             context: choiceContext,
             player: Owner,
             filter: null,

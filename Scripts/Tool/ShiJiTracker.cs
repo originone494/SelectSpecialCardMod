@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using MegaCrit.Sts2.Core.Combat;
+using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using STS2RitsuLib;
@@ -19,6 +20,7 @@ public static class ShiJiTracker
     }
 
     private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Player, TurnRecord> Records = new();
+    private static bool _initialized;
 
     private static TurnRecord GetRecord(Player player)
     {
@@ -33,11 +35,14 @@ public static class ShiJiTracker
 
     public static void Init()
     {
+        if (_initialized) return;
+        ShiJiHook.Register();
         RitsuLibFramework.SubscribeLifecycle<PlayerTurnStartedEvent>(evt =>
         {
             Records.Remove(evt.Player);
-            ShiJiHook.EnsureConnected(evt.Player);
+            if (LocalContext.IsMe(evt.Player)) ShiJiHook.EnsureConnected(evt.Player);
         });
+        _initialized = true;
     }
 
     public static void ReportAttackPlayed(Player owner, CardPlay cardPlay)

@@ -7,7 +7,7 @@ public enum RetrievalDestination { Hand, Discard, Exhaust }
 public enum RetrievalChoice { Player, Random }
 public sealed record RetrievalOptions(int Maximum = 1, int Minimum = 0,
     RetrievalDestination Destination = RetrievalDestination.Hand, RetrievalChoice Choice = RetrievalChoice.Player,
-    bool Confirm = false);
+    bool Confirm = true);
 public static class CardRetrieval
 {
     public static Task<List<CardModel>> Retrieve(PlayerChoiceContext context, Player player,

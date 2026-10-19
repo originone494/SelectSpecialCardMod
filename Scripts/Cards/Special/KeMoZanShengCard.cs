@@ -74,6 +74,8 @@ public class KeMoZanShengCard : SelectSpecialBaseCard
         if (Owner == null) return;
         if (CombatManager.Instance.IsOverOrEnding) return;
 
-        await CardPileCmd.Add(this, PileType.Hand);
+        await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Schedule(this,
+            async () => { await CardPileCmd.Add(this, PileType.Hand); },
+            () => Pile?.Type == PileType.Exhaust);
     }
 }

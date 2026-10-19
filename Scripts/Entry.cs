@@ -1,3 +1,4 @@
+using System;
 using System.Reflection;
 using HarmonyLib;
 using Godot;
@@ -50,6 +51,23 @@ public class Entry
     public static PileType XyzMaterialPile;
 
     private static bool _initialized;
+
+    // 初始化阶段标记：只负责"出错时说出是哪一步挂的"，然后照旧把异常抛出去。
+    //
+    // 刻意不做隔离：本模组的约定是"初始化出错就整个起不来"。
+    // 让某个功能悄悄降级（例如只有神话卡库没加载）会变成"某张卡效果莫名不对"这种更难查的症状；
+    // 而整个 mod 不工作，进游戏马上就能发现。所以这里捕获只为了写清楚阶段名，写完继续 throw。
+    private static void Stage(string name, Action action)
+    {
+        try { action(); }
+        catch (Exception ex)
+        {
+            GD.PushError($"[SelectSpecialCardMod] 初始化阶段「{name}」失败：{ex.GetType().Name}: {ex.Message}");
+            Logger.Info($"[Init] 初始化阶段「{name}」失败：{ex}");
+            throw;
+        }
+    }
+
     public static void Init()
     {
         if (_initialized) return;
@@ -78,54 +96,79 @@ public class Entry
         RegisterXyzMaterialPile();
         MegaCrit.Sts2.Core.Combat.CombatManager.Instance.CombatEnded += _ => KeMoEquip.Reset();
 
+        // 以下每个阶段都可独立失败：失败只影响对应功能，不会阻止后面应用补丁。
         // 「时机」系统：攻击卡计数器 + 弃牌堆按钮右键挂接
-        ShiJiTracker.Init();
+        Stage("时机系统", ShiJiTracker.Init);
 
         // 「特殊效果」系统：手牌右键发动特殊效果（RitsuLib 右键交互）
-        SpecialEffectHook.Init();
-        // 「特殊效果」可发动时的手牌金色泛光：走 RitsuLib 的手牌描边系统
-        // （Switch + refreshEveryFrame：每帧重算，条件一变立刻亮/灭——不会再出现"用完了还黄着"）
-        ModCardHandOutlineRegistry.Register<SelectSpecialBaseCard>(
-            ModCardHandOutlineRules.Switch(
-                card => UiConditions.SpecialEffect(card) ? NCardHighlight.gold : null,
-                priority: 10,
-                visibleWhenUnplayable: true,
-                refreshEveryFrame: true));
+        Stage("特殊效果右键", SpecialEffectHook.Init);
 
-        // 已放置的灵摆卡默认蓝边，仅主动灵摆效果可发动时为金边；被动效果不改变颜色。
-        ModCardHandOutlineRegistry.Register<YiXiangMingVoiceCard>(
-            ModCardHandOutlineRules.Switch(
-                card => (card as YiXiangMingVoiceCard)?.PendulumOutlineColor,
-                priority: 20,
-                visibleWhenUnplayable: true,
-                refreshEveryFrame: true));
+        Stage("手牌描边", () =>
+        {
+            // 「特殊效果」可发动时的手牌金色泛光：走 RitsuLib 的手牌描边系统
+            // （Switch + refreshEveryFrame：每帧重算，条件一变立刻亮/灭——不会再出现"用完了还黄着"）
+            ModCardHandOutlineRegistry.Register<SelectSpecialBaseCard>(
+                ModCardHandOutlineRules.Switch(
+                    card => UiConditions.SpecialEffect(card) ? NCardHighlight.gold : null,
+                    priority: 10,
+                    visibleWhenUnplayable: true,
+                    refreshEveryFrame: true));
+
+            // 已放置的灵摆卡默认蓝边，仅主动灵摆效果可发动时为金边；被动效果不改变颜色。
+            ModCardHandOutlineRegistry.Register<YiXiangMingVoiceCard>(
+                ModCardHandOutlineRules.Switch(
+                    card => (card as YiXiangMingVoiceCard)?.PendulumOutlineColor,
+                    priority: 20,
+                    visibleWhenUnplayable: true,
+                    refreshEveryFrame: true));
+
+            // 中央的耀圣卡显示金边，位置或手牌数量改变时实时刷新；不要求当前能支付费用。
+            ModCardHandOutlineRegistry.Register<SelectSpecialBaseCard>(
+                ModCardHandOutlineRules.Switch(
+                    card => UiConditions.YaoShengCenter(card) ? NCardHighlight.gold : null,
+                    priority: 30,
+                    visibleWhenUnplayable: true,
+                    refreshEveryFrame: true));
+        });
 
         // 本局「见过的卡」记录（NCard 渲染时登记，供「当年假设山海图」等卡使用）
-        RunSeenCards.Init();
+        Stage("见卡记录", RunSeenCards.Init);
 
         // 意图卡牌化：怪物意图拆成迷你卡悬浮在怪物头上
-        IntentCardHook.Init();
+        Stage("意图卡牌化", IntentCardHook.Init);
 
         // 逃跑副本卡：玩家遁走结算（EndCombatInternal + 空奖励）
-        EscapeState.Init();
+        Stage("逃跑结算", EscapeState.Init);
 
         // 召唤副本卡：宠物帮打（玩家回合开始按意图快照伤害攻击）
-        PetAlly.Init();
+        Stage("宠物助战", PetAlly.Init);
 
         // 击败每层第一个精英：Special 卡池 3 选 1 奖励（前提：持有「决斗盘」，移植自 yuno mod）
-        EliteSpecialReward.Register();
+        Stage("精英特殊奖励", EliteSpecialReward.Register);
 
         // 开局发放「决斗盘」，并兼容替换旧存档的「死亡讯息-红」。
-        DuelDskGrant.Register();
+        Stage("开局决斗盘", DuelDskGrant.Register);
+        Stage("开局特殊卡", RunStartCards.Register);
+
+        Stage("神话效果库", () =>
+        {
+            FusionEffectLibrary.Validate();
+            Logger.Info($"[Myth] Loaded {FusionEffectLibrary.All.Count} independently authored effect modules.");
+        });
+        Stage("神话卡库", () =>
+        {
+            SelectSpecialCardMod.Scripts.Myth.MythCardFactory.Validate();
+            Logger.Info($"[MythMutation] conditions={SelectSpecialCardMod.Scripts.Myth.MythConditionRegistry.All.Count}; effects={SelectSpecialCardMod.Scripts.Myth.MythEffectRegistry.All.Count}; portraits={SelectSpecialCardMod.Scripts.Myth.MythArtManifest.All.Count}");
+        });
 
         // 额外卡组：设置页入口（局外选「额外怪兽」）+ 开局把选好的卡放进额外堆
-        ExtraDeckSettings.Register();
-        ExtraDeckGrant.Register();
+        Stage("额外卡组设置", ExtraDeckSettings.Register);
+        Stage("额外卡组发放", ExtraDeckGrant.Register);
         // 系列卡补给：获得珠泪 / 天杯龙·灿幻系列的卡时，把对应额外怪兽加入额外堆（同名上限 3）
-        ExtraDeckSeries.Register();
+        Stage("系列补给", ExtraDeckSeries.Register);
         // 额外堆手动召唤：额外怪兽满足召唤条件时高亮额外堆，右键可召唤
-        ExtraDeckSummonHook.Register();
-        PendulumSummon.Register();
+        Stage("额外堆召唤", ExtraDeckSummonHook.Register);
+        Stage("灵摆召唤", PendulumSummon.Register);
 
         // Harmony 补丁（DrawWindowPatch 等）：实例 ID 用本 mod 自己的，避免与其他 mod 冲突。
         // 不用 PatchAll：它遇到单个补丁类应用失败会整体抛异常中断，排在后面的补丁类
@@ -144,7 +187,7 @@ public class Entry
             catch (Exception ex)
             {
                 GD.PushError($"[SelectSpecialCardMod] 补丁类 {type.FullName} 应用失败：{ex.GetType().Name}: {ex.Message}");
-                Logger.Info($"[Patch] 补丁类 {type.FullName} 应用失败：{ex.Message}");
+                Logger.Info($"[Patch] 补丁类 {type.FullName} 应用失败：{ex}");
             }
         }
 

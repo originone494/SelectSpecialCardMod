@@ -16,6 +16,8 @@ internal static class MonsterText
     internal const string GainPower = "SELECT_SPECIAL_CARD_MOD_TEXT_GAIN_POWER";
     internal const string ApplyPower = "SELECT_SPECIAL_CARD_MOD_TEXT_APPLY_POWER";
     internal const string PlaceholderDamage = "SELECT_SPECIAL_CARD_MOD_TEXT_PLACEHOLDER_DAMAGE";
+    internal const string SealStatus = "SELECT_SPECIAL_CARD_MOD_TEXT_SEAL_STATUS";
+    internal const string SealCurse = "SELECT_SPECIAL_CARD_MOD_TEXT_SEAL_CURSE";
     // 意图兜底文案（游戏自己的意图文案读不到时用）
     internal const string IntentLabelPrefix = "SELECT_SPECIAL_CARD_MOD_INTENT_LABEL_";
     // 卡名兜底（招式名读不到、用意图类型拼卡名时用）

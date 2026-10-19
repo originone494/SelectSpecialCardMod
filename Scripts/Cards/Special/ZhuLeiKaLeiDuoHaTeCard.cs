@@ -40,10 +40,10 @@ public class ZhuLeiKaLeiDuoHaTeCard : SelectSpecialBaseCard, ISongMuCard, ISongM
         SelectTags.RongHeGuaiShou,
         SelectTags.SongMu,
         SelectTags.ZhuLeiGuaiShou,
-        SelectTags.ExtraMonster,
     ];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [
+        CardKeyword.Retain,
     ];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
@@ -70,9 +70,12 @@ public class ZhuLeiKaLeiDuoHaTeCard : SelectSpecialBaseCard, ISongMuCard, ISongM
             || DrawWindowPatch.IsDrawing(this)) return;
         if (CombatState?.HittableEnemies.Any() != true) return;
         var combat = CombatState;
-        if (!await ZhuChangEffectVfx.Play(this, card)) return;
-        if (CombatState != combat || Pile?.Type != PileType.Hand) return;
-        await GiveWeakToAllEnemies(new BlockingPlayerChoiceContext());
+        await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Schedule(this, async () =>
+        {
+            if (!await ZhuChangEffectVfx.Play(this, card)) return;
+            if (CombatState != combat || Pile?.Type != PileType.Hand) return;
+            await GiveWeakToAllEnemies(new BlockingPlayerChoiceContext());
+        }, () => Pile?.Type == PileType.Hand);
     }
 
     // 驻场的送墓分支：本卡在手上时，给予所有敌人2层虚弱。

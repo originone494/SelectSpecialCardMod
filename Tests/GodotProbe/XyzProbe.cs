@@ -46,7 +46,7 @@ public static class XyzProbe
             h.Patch(AccessTools.Method(typeof(CreatureCmd), "GainBlock", [typeof(Creature), typeof(BlockVar), typeof(CardPlay), typeof(bool)]), prefix: new HarmonyMethod(typeof(XyzProbe), nameof(Block)));
 
             foreach (var link in new YiXiangMingLinkCard[] { new YiXiangMingYiShenGuangYaoTianShiCard(), new YiXiangMingShenYiFengBaoEMoCard() })
-                if (!link.Tags.Contains(SelectTags.ExtraMonster)) throw new Exception("A Vaalmonica Link1 is missing its inherited extra-monster tag.");
+                if (!CardClassification.IsExtraMonster(link)) throw new Exception("A Vaalmonica Link1 is not recognized as an extra monster.");
             var player = ArrivalEquipmentProbe.NewPlayer();
             AccessTools.Field(typeof(Player), "<Character>k__BackingField").SetValue(player, new MegaCrit.Sts2.Core.Models.Characters.Ironclad());
             var ctx = new BlockingPlayerChoiceContext();
@@ -57,21 +57,64 @@ public static class XyzProbe
             var skill = ArrivalEquipmentProbe.AddCard(typeof(MegaCrit.Sts2.Core.Models.Cards.DefendIronclad), player, PileType.Hand);
             if (original.EnergyCost.Canonical != 1 || original.Type != CardType.Attack || original.Rarity != CardRarity.Ancient
                 || original.StarLevel != 0 || original.XyzRank != 4 || !original.Keywords.Contains(CardKeyword.Retain)
-                || !original.Tags.Contains(SelectTags.ExtraMonster) || !original.Tags.Contains(SelectTags.ChaoLiang)
+                || !CardClassification.IsExtraMonster(original) || !original.Tags.Contains(SelectTags.ChaoLiangGuaiShou)
+                || !original.Tags.Contains(SelectTags.ChaoLiang)
                 || original.DynamicVars.Damage.IntValue != 21 || original.DynamicVars.Block.IntValue != 20)
                 throw new Exception("No.41 metadata or independent rank is wrong.");
             if (!original.CanSummonFromExtraDeck(player) || original.IsValidMaterial(attack)) throw new Exception("Four-star material filtering is wrong.");
+            // 同一张灵摆怪兽只有在被效果放置到灵摆区时才失去素材资格。
+            var placed = (YiXiangMingVoiceCard)first;
+            foreach (var side in new[] { PendulumEdgeSide.Left, PendulumEdgeSide.Right })
+            {
+                placed.LockedPendulumSide = side;
+                placed.PlacedAtEdgeByEffect = true;
+                if (original.IsValidMaterial(first) || original.CanSummonFromExtraDeck(player)
+                    || KeMoLinkSummon.CanPay([first, second], 2, 2)
+                    || MaterialPayment.CanUseAsMaterial(first))
+                    throw new Exception("A pendulum-zone card remained eligible as summon material.");
+                if (await MaterialPayment.Exhaust(ctx, player, [first], 1, PileType.Hand)
+                    || first.Pile?.Type != PileType.Hand || Exhausted.Count != 0)
+                    throw new Exception("Rejected pendulum material was consumed.");
+                if (!MaterialPayment.CanUseAsMaterial(second))
+                    throw new Exception("An ordinary hand pendulum monster lost its material eligibility.");
+                placed.PlacedAtEdgeByEffect = false;
+            }
+            if (!original.IsValidMaterial(first) || !original.CanSummonFromExtraDeck(player)
+                || !KeMoLinkSummon.CanPay([first, second], 2, 2))
+                throw new Exception("Ordinary hand material eligibility was not restored.");
+            var compare = (Comparison<CardModel>)AccessTools.Method(typeof(ExtraDeckSummonHook), "CompareCardFaces")
+                .CreateDelegate(typeof(Comparison<CardModel>));
+            CardModel[] links = [ModelDb.Card<TianZhiYueCard>(), ModelDb.Card<YiXiangMingYiShenGuangYaoTianShiCard>()];
+            var orderedLinks = links.OrderBy(c => c.Title, StringComparer.Ordinal).ToArray();
+            CardModel[] expected = [ModelDb.Card<KeMoLuoLeiRiZiCard>(), ModelDb.Card<CanHuanShengLongShuangChaTianLongCard>(),
+                original, ..orderedLinks, first];
+            var displayed = expected.Reverse().ToList();
+            displayed.Sort(compare);
+            if (!displayed.SequenceEqual(expected))
+                throw new Exception("Extra deck display did not group card frames and sort names within a group.");
             _cancel = true;
             if (await original.PaySummonCost(ctx, player) || first.Pile?.Type != PileType.Hand || original.MaterialGroupId != 0) throw new Exception("Canceled overlay changed cards.");
             _cancel = false;
             if (await XyzMaterials.Stage(original, [first, first])) throw new Exception("One physical card was counted twice.");
+            // 先触发模型注册，再进行真正的叠放，重现游戏中已注册模型的创建环境。
+            var registeredBinding = ModelCapabilityRegistry.Create<XyzMaterialCapability>();
+            registeredBinding.Group = 73;
+            var independentBinding = ModelCapabilityRegistry.Create<XyzMaterialCapability>();
+            var canonicalBinding = ModelDb.GetById<XyzMaterialCapability>(ModelDb.GetId<XyzMaterialCapability>());
+            if (ReferenceEquals(registeredBinding, independentBinding) || independentBinding.Group != 0
+                || canonicalBinding.Group != 0 || !registeredBinding.IsMutable || !independentBinding.IsMutable)
+                throw new Exception("Material factory did not create independent mutable bindings from the registered model.");
             int removals = 0;
             PileType.Hand.GetPile(player).CardRemoved += card => { if (card == first || card == second) removals++; };
             if (!await original.PaySummonCost(ctx, player) || original.XyzMaterialCards.Count != 2 || Exhausted.Count != 0
                 || first.Pile?.Type != Entry.XyzMaterialPile || second.Pile?.Type != Entry.XyzMaterialPile || removals != 2)
                 throw new Exception("Overlay must preserve the two real cards without exhausting and remove both hand nodes.");
             var marker = first.Capabilities().All.OfType<XyzMaterialCapability>().Single();
-            var loadedMarker = new XyzMaterialCapability(); loadedMarker.LoadState(marker.SaveState(), 1);
+            var secondMarker = second.Capabilities().All.OfType<XyzMaterialCapability>().Single();
+            if (ReferenceEquals(marker, secondMarker) || marker.Group != secondMarker.Group
+                || registeredBinding.Group != 73 || canonicalBinding.Group != 0)
+                throw new Exception("Overlay reused a binding instance or mutated the canonical binding.");
+            var loadedMarker = ModelCapabilityRegistry.Create<XyzMaterialCapability>(); loadedMarker.LoadState(marker.SaveState(), 1);
             if (loadedMarker.Group != marker.Group || marker.Group <= 0) throw new Exception("Material binding JSON did not round-trip.");
             var materialClone = first.CreateClone();
             var markerClone = (XyzMaterialCapability)marker.CloneFor(materialClone);

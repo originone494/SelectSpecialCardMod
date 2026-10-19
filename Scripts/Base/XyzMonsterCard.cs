@@ -22,12 +22,12 @@ public abstract class XyzMonsterCard(int cost) : SelectSpecialBaseCard(cost, Car
     [SavedProperty] public bool MaterialsStaged { get; set; }
     public IReadOnlyList<CardModel> XyzMaterialCards => XyzMaterials.Cards(this);
 
-    protected override HashSet<CardTag> CanonicalTags => [SelectTags.ExtraMonster, SelectTags.ChaoLiang];
+    protected override HashSet<CardTag> CanonicalTags => [SelectTags.ChaoLiangGuaiShou, SelectTags.ChaoLiang];
     protected override IEnumerable<IHoverTip> AdditionalHoverTips
     {
         get
         {
-            yield return HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster);
+            yield return HoverTipFactory.FromKeyword(SelectKeywords.ChaoLiangGuaiShou);
             yield return HoverTipFactory.FromKeyword(SelectKeywords.ChaoLiang);
             if (CombatState == null) yield break;
             var title = new LocString("cards", "SELECT_SPECIAL_CARD_MOD_XYZ_MATERIALS_TITLE");
@@ -38,7 +38,9 @@ public abstract class XyzMonsterCard(int cost) : SelectSpecialBaseCard(cost, Car
         }
     }
 
-    public abstract bool IsValidMaterial(CardModel card);
+    public bool IsValidMaterial(CardModel card)
+        => MaterialPayment.CanUseAsMaterial(card) && MatchesMaterial(card);
+    protected abstract bool MatchesMaterial(CardModel card);
     private static LocString MaterialPrompt => new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_XYZ_SUMMON");
 
     public bool CanSummonFromExtraDeck(Player player)

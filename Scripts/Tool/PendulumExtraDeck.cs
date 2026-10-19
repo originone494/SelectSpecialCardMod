@@ -32,14 +32,26 @@ public static class PendulumExtraDeck
     public static async Task AddTemporary(Player player, CardModel canonical)
     {
         if (player.Creature.CombatState == null || CombatManager.Instance.IsOverOrEnding) return;
+        // 已注册的模型能力必须通过工厂克隆；直接 new 会重复注册同一 ModelId，
+        // 导致邀请②在两次选卡后抛异常，打出中的卡无法完成落堆。
+        var marker = ModelCapabilityRegistry.Create<TemporaryPendulumExtraCapability>();
+        marker.Temporary = true;
         var card = player.RunState.CreateCard(canonical, player);
-        card.AddCapability(new TemporaryPendulumExtraCapability { Temporary = true });
         bool added = false;
         try
         {
+            card.AddCapability(marker);
             added = (await CardPileCmd.Add(card, Entry.ExtraPile)).success;
         }
-        finally { if (!added) RemoveTemporary(card); }
+        finally
+        {
+            // 包括标记挂载失败在内，均回收刚创建的临时实体，不留下局内资产。
+            if (!added)
+            {
+                card.RemoveFromCurrentPile();
+                if (player.RunState.ContainsCard(card)) player.RunState.RemoveCard(card);
+            }
+        }
     }
 
     public static void RemoveTemporary(CardModel card)

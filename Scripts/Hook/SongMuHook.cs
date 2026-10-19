@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Logging;
 using MegaCrit.Sts2.Core.Models;
 using SelectSpecialCardMod.Scripts.Custom;
+using SelectSpecialCardMod.Scripts.Rules;
 
 namespace SelectSpecialCardMod.Scripts.Hook;
 
@@ -40,14 +41,6 @@ public static class SongMuHook
     private const int MaxChainDepth = 32;
     private static readonly AsyncLocal<int> ChainDepth = new();
 
-    private sealed class DeferredWindow
-    {
-        public List<(PlayerChoiceContext Context, CardModel Card)> Pending { get; } = [];
-    }
-
-    // 每个异步结算链独立捕获事件；嵌套堆墓不能清空外层尚未处理的事件。
-    private static readonly AsyncLocal<DeferredWindow?> Deferred = new();
-
     // 由卡牌基类的 AfterCardDiscarded 调用，card == 被丢弃的那张卡
     public static async Task OnCardDiscarded(PlayerChoiceContext ctx, CardModel card)
     {
@@ -57,14 +50,7 @@ public static class SongMuHook
         if (player is null) return;
         if (CombatManager.Instance.IsOverOrEnding) return;
 
-        // 处于延迟窗口（如整堆送墓）时先记账，窗口结束后再按被丢弃的先后顺序逐一触发。
-        if (Deferred.Value is { } window)
-        {
-            window.Pending.Add((ctx, card));
-            return;
-        }
-
-        await Trigger(ctx, card, player);
+        await CardEffectQueue.Schedule(card, () => Trigger(ctx, card, player), () => card.Pile?.Type == PileType.Discard);
     }
 
     /// <summary>
@@ -73,31 +59,7 @@ public static class SongMuHook
     /// 用途：让「一次性把整堆牌送入弃牌堆」这类效果先整体生效，
     /// 再处理被丢弃的送墓卡，避免送墓在扫牌中途抽/检索走牌、导致后续被重复搬运。
     /// </summary>
-    public static async Task DeferTriggers(Func<Task> body)
-    {
-        var parent = Deferred.Value;
-        var window = new DeferredWindow();
-        Deferred.Value = window;
-        try
-        {
-            await body();
-        }
-        finally
-        {
-            Deferred.Value = parent;
-        }
-
-        if (parent != null)
-        {
-            parent.Pending.AddRange(window.Pending);
-            return;
-        }
-        foreach (var (ctx, card) in window.Pending)
-        {
-            if (CombatManager.Instance.IsOverOrEnding) break;
-            if (card.Owner is { } player) await Trigger(ctx, card, player);
-        }
-    }
+    public static Task DeferTriggers(Func<Task> body) => CardEffectQueue.Run(body);
 
     private static async Task Trigger(PlayerChoiceContext ctx, CardModel card, Player player)
     {
@@ -108,6 +70,7 @@ public static class SongMuHook
         }
 
         ChainDepth.Value++;
+        ctx.PushModel(card);
         try
         {
             if (card is ISongMuCard self)
@@ -124,6 +87,7 @@ public static class SongMuHook
         }
         finally
         {
+            ctx.PopModel(card);
             ChainDepth.Value--;
         }
     }

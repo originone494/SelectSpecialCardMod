@@ -169,7 +169,7 @@ public static class KeMoEquip
     /// <summary>把一张卡当融合素材消耗掉：如果它正作为装备挂在别人身上，先卸掉那个组件。</summary>
     public static async Task<bool> ExhaustMaterial(PlayerChoiceContext ctx, CardModel card)
     {
-        if (card.HasBeenRemovedFromState) return false;
+        if (!MaterialPayment.CanUseAsMaterial(card)) return false;
         DetachMaterialEquipment(card);
         // 其他素材的消耗连锁已经支付了这张卡时，不重复广播消耗事件。
         if (card.Pile?.Type == PileType.Exhaust) return true;
@@ -190,13 +190,7 @@ public static class KeMoEquip
         new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_KE_MO_EQUIP");
 
     /// <summary>连接等级；非连接怪兽为 0。连接识别和素材计数共用此定义。</summary>
-    public static int LinkRating(CardModel card)
-    {
-        if (card.Tags.Contains(SelectTags.Link3)) return 3;
-        if (card.Tags.Contains(SelectTags.Link2)) return 2;
-        if (card.Tags.Contains(SelectTags.Link1)) return 1;
-        return 0;
-    }
+    public static int LinkRating(CardModel card) => CardClassification.LinkRating(card);
 
     public static bool IsLinkMonster(CardModel card) => LinkRating(card) > 0;
 

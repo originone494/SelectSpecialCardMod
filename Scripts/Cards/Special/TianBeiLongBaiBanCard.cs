@@ -14,15 +14,15 @@ using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Hook;
 using SelectSpecialCardMod.Scripts.Pool;
+using SelectSpecialCardMod.Scripts.Rules;
 using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
 // 游戏王「天盃龍パイドラ」（Tenpai Dragon Paidra）：
-//   打出：造成9点伤害
-//   登场：「检索」1张「灿幻魔法」卡
-//   一回合只能打出一次，打出后返回手牌，之后可以进行一次「同调」
-public class TianBeiLongBaiBanCard : SelectSpecialBaseCard, IDengChangCard
+//   打出：造成9点伤害，之后进行一次「同调」。
+//   特殊效果：一场战斗一次，「检索」1张「灿幻魔法」卡（取消选择不消耗次数）。
+public class TianBeiLongBaiBanCard : SelectSpecialBaseCard, ISpecialEffectCard
 {
     public TianBeiLongBaiBanCard() : base(1, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
     {
@@ -39,7 +39,7 @@ public class TianBeiLongBaiBanCard : SelectSpecialBaseCard, IDengChangCard
         SelectTags.TianBeiLong,
         SelectTags.LongZu,
         ..StarTags,
-        SelectTags.DengChang,
+        SelectTags.SpecialEffect,
     ];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [
@@ -49,7 +49,7 @@ public class TianBeiLongBaiBanCard : SelectSpecialBaseCard, IDengChangCard
         HoverTipFactory.FromKeyword(SelectKeywords.TianBeiLong),
         HoverTipFactory.FromKeyword(SelectKeywords.LongZu),
         ..StarHoverTips,
-        HoverTipFactory.FromKeyword(SelectKeywords.DengChang),
+        HoverTipFactory.FromKeyword(SelectKeywords.SpecialEffect),
         HoverTipFactory.FromKeyword(SelectKeywords.TongDiao),
         HoverTipFactory.FromKeyword(SelectKeywords.Retriever),
     ];
@@ -63,40 +63,33 @@ public class TianBeiLongBaiBanCard : SelectSpecialBaseCard, IDengChangCard
             .FromCard(this, cardPlay)
             .Targeting(cardPlay.Target)
             .Execute(choiceContext);
-    }
 
-    // 登场：「检索」1张「灿幻魔法」卡
-    public async Task DengChangSpecial(PlayerChoiceContext ctx, Player player)
-    {
-        await SelectToolCmd.RetrieverCard(
-            ctx,
-            player,
-            c => c.Tags.Contains(SelectTags.CanHuanMoFa),
-            p => p is SelectSpecialCardPool,
-            1, source: this);
-    }
-
-    // 一回合只能打出一次：按**这张卡自己**记（文本写的是「一回合一次」，不是「同名卡一回合一次」）
-    private (CombatId? Combat, int Turn)? _playedThisTurn;
-
-    protected override bool IsPlayable => Owner == null || _playedThisTurn != PerTurnOnce.CurrentKey(Owner);
-
-    // 打出此卡后，返回手牌，之后可以进行一次「同调」（一回合一次）
-    public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
-    {
-        if (Owner == null) return;
-        ShiJiTracker.ReportAttackPlayed(Owner, cardPlay);
-
-        if (cardPlay.Card != this) return;
-
-        var now = PerTurnOnce.CurrentKey(Owner);
-        if (_playedThisTurn == now) return;
-        _playedThisTurn = now;
-
-        // 打出后返回手牌；回合结束的最后由游戏机制正常清空手牌（连同它一起进弃牌堆）
-        await CardPileCmd.Add(this, PileType.Hand);
-
-        // 可以进行一次「同调」
         await TongDiao.TryTongDiao(choiceContext, Owner, this);
+    }
+
+    // 沿用现有检索的战斗次数账本，改由特殊效果发动。
+    private static string SearchKey(CardModel card) => PerCombatOnce.Key("BaiBanSearch", card.Id.ToString());
+
+    public override Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
+    {
+        if (Owner != null) ShiJiTracker.ReportAttackPlayed(Owner, cardPlay);
+        return base.AfterCardPlayed(choiceContext, cardPlay);
+    }
+
+    public bool CanActivateSpecialEffect(Player player)
+        => Owner == player && !PerCombatOnce.IsUsed(player, SearchKey(this));
+
+    public async Task ActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    { await TryActivateSpecialEffect(choiceContext, player); }
+
+    public async Task<bool> TryActivateSpecialEffect(PlayerChoiceContext choiceContext, Player player)
+    {
+        if (!CanActivateSpecialEffect(player)) return false;
+        var retrieved = await SelectToolCmd.RetrieverCard(
+            choiceContext, player, c => c.Tags.Contains(SelectTags.CanHuanMoFa),
+            p => p is SelectSpecialCardPool, 1, source: this);
+        if (retrieved.Count == 0) return false;
+        PerCombatOnce.Mark(player, SearchKey(this));
+        return true;
     }
 }

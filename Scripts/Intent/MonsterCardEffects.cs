@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
+using GameHook = MegaCrit.Sts2.Core.Hooks.Hook;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
@@ -32,7 +33,13 @@ internal static class MonsterCardEffects
 
     internal static async Task Play(Creature actor, CardModel card)
     {
-        if (actor.Monster == null || actor.IsDead) return;
+        if (actor.Monster == null) return;
+        // 生命为0不一定已经离场：利齿之眼等怪物会保留在战斗中，由当前原生招式完成复活。
+        // 只放行仍在场、原版不允许移除且与当前状态一致的原生招式；死亡普通怪及旧招式仍不执行。
+        if (actor.IsDead && (card is not MonsterMoveCard { SourceMove: not null } pending
+            || !ReferenceEquals(pending.SourceMove, actor.Monster.NextMove)
+            || actor.CombatState is not { } combat || !combat.Creatures.Contains(actor)
+            || GameHook.ShouldCreatureBeRemovedFromCombatAfterDeath(combat, actor))) return;
         PlayDepth.Value++;
         try
         {

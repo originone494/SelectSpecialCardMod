@@ -1,0 +1,11 @@
+{
+  "SELECT_SPECIAL_CARD_MOD_MYTH_UNBOUND_LEGACY.description": "効果のない旧カードのためプレイ不可。「気まぐれ神話合体」で神話カードを生成する。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.title": "除外札",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.description": "除外されたカードは、効果で取り戻さない限り戦闘に戻らない。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.empty": "除外札は空。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.title": "エクストラ",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.description": "ドローされず、山札・捨て札・廃棄札にも入らない。特定の効果でのみ取り出せる。",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.empty": "エクストラは空。",
+  "SELECT_SPECIAL_CARD_MOD_HAND_CENTER.title": "手札中央",
+  "SELECT_SPECIAL_CARD_MOD_HAND_CENTER.description": "プレイ直前の[gold]手札[/gold]で判定。奇数枚なら中央の1枚、偶数枚なら中央の2枚を指す。"
+}

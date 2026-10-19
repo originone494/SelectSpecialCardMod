@@ -2,11 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Godot;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Context;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Helpers;
+using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Runs;
 using STS2RitsuLib;
 using SelectSpecialCardMod.Scripts.Cards.Special;
@@ -147,8 +151,31 @@ public static class ExtraDeckSeries
 
         // ② 战斗副本退场 + 唯一需要被看到的演出：飞向额外堆
         SelectToolCmd.PlayFlyToPile(combatCopy, Entry.ExtraPile);
-        await CardPileCmd.Add(combatCopy, Entry.ExtraUsedPile, CardPilePosition.Bottom, null, skipVisuals: true);
-        return combatCopy.Pile?.Type == Entry.ExtraUsedPile;
+        var result = await CardPileCmd.Add(combatCopy, Entry.ExtraUsedPile, CardPilePosition.Bottom, null, skipVisuals: true);
+        if (!result.success || combatCopy.Pile?.Type != Entry.ExtraUsedPile) return false;
+        CompleteSilentExtraReturn(result);
+        return true;
+    }
+
+    internal static void CompleteSilentExtraReturn(CardPileAddResult result)
+    {
+        if (!result.success || result.cardAdded.Pile?.Type != Entry.ExtraUsedPile) return;
+        var oldPile = result.oldPile;
+        if (oldPile == null || ReferenceEquals(result.cardAdded.Pile, oldPile)) return;
+
+        // 静默移堆也抑制来源移除通知；飞行特效只是另一张卡面，不能清理手牌/Play的原节点。
+        bool visibleSource = oldPile.Type is PileType.Hand or PileType.Play
+            && LocalContext.IsMe(result.cardAdded.Owner);
+        var node = visibleSource ? NCard.FindOnTable(result.cardAdded, oldPile.Type) : null;
+        oldPile.InvokeCardRemoved(result.cardAdded);
+        oldPile.InvokeCardRemoveFinished();
+        oldPile.InvokeContentsChanged();
+
+        if (!visibleSource) return;
+        if (oldPile.Type == PileType.Hand && NPlayerHand.Instance is { } hand
+            && hand.GetCardHolder(result.cardAdded) != null)
+            hand.Remove(result.cardAdded);
+        if (node != null && GodotObject.IsInstanceValid(node)) node.QueueFreeSafely();
     }
 
     internal static void RestorePersistentExtraCard(Player player, CardModel persistent, CardPile extraPile)
@@ -205,13 +232,22 @@ public static class ExtraDeckSeries
                     Entry.Logger.Error($"[ExtraDeckSeries] 找不到卡牌模板：{type.Name}");
                     continue;
                 }
-                while (pile.Cards.Count(c => c.GetType() == type) < want)
+                // 有界补齐：只补 missing 张。原来的 while（"堆里还差就再加一张"）一旦遇到
+                // "命令返回成功但卡没进额外堆"，就会在进入房间的钩子里原地死循环。
+                int added = 0;
+                for (int i = 0; i < missing; i++)
                 {
                     var card = player.RunState.CreateCard(canonical, player);
                     var result = await CardPileCmd.Add(card, Entry.ExtraPile);
                     if (!result.success) throw new InvalidOperationException($"Cannot replenish {card.Id}");
+                    if (card.Pile?.Type != Entry.ExtraPile)
+                    {
+                        Entry.Logger.Error($"[ExtraDeckSeries] 额外堆补齐未落位：{card.Id.Entry}（实际去向 {card.Pile?.Type.ToString() ?? "none"}），停止本次补齐");
+                        break;
+                    }
+                    added++;
                 }
-                Entry.Logger.Info($"[ExtraDeckSeries] 额外堆补齐 {canonical.Title} ×{missing}（现有 {have}→{want}，上限 {MaxCopiesPerName}）");
+                Entry.Logger.Info($"[ExtraDeckSeries] 额外堆补齐 {canonical.Title} ×{added}（现有 {have}→{pile.Cards.Count(c => c.GetType() == type)}，上限 {MaxCopiesPerName}）");
             }
         }
         catch (Exception e)
@@ -231,6 +267,7 @@ public static class ExtraDeckSeries
         void Add(Type type, int count)
         {
             if (count <= 0) return;
+            if (!CardAvailability.IsAllowedType(type, player.RunState)) return;
             want.TryGetValue(type, out int current);
             want[type] = Math.Min(MaxCopiesPerName, current + count);
         }
@@ -253,6 +290,6 @@ public static class ExtraDeckSeries
     // 玩家"拥有"的该系列卡张数：只数卡组里的（额外堆不算），并且排除额外怪兽本身
     private static int CountOwned(Player player, ExtraDeckSeriesRule series)
         => PileType.Deck.GetPile(player).Cards
-            .Where(c => !c.Tags.Contains(SelectTags.ExtraMonster))
+            .Where(c => !CardClassification.IsExtraMonster(c))
             .Count(series.Matches);
 }

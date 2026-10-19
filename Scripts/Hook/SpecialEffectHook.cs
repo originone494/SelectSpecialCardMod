@@ -7,6 +7,9 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
+using MegaCrit.Sts2.Core.Nodes.Combat;
+using MegaCrit.Sts2.Core.Nodes.Rooms;
+using MegaCrit.Sts2.Core.Nodes.Screens.ScreenContext;
 using STS2RitsuLib.Interactions.RightClick;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Rules;
@@ -44,9 +47,23 @@ public static class SpecialEffectHook
     private static bool HasUsedThisTurn(Player player, CardModel card)
         => PlayerEffectState.For(player).IsUnavailable(EffectKey(card), PlayerEffectState.Turn(player));
 
-    // 某张牌当前是否「可以右键发动特殊效果」——与右键注册用的判据完全一致：
+    // 必须在本机点击入队前检查界面；排队执行时选牌往往已经结束，届时再查就太晚。
+    // 此条件不放进CanActivate/同步执行判据，避免各端界面不同导致联机结算分歧。
+    internal static bool CanHandleLocal(ModRightClickContext context)
+    {
+        if (context.Trigger.Source != ModRightClickSource.HandCard
+            || context.Model is not CardModel card || card is not ISpecialEffectCard
+            || !card.Tags.Contains(SelectTags.SpecialEffect) || card.Owner != context.Player
+            || card.Pile?.Type != PileType.Hand) return false;
+        var room = NCombatRoom.Instance;
+        var hand = NPlayerHand.Instance;
+        return room != null && hand != null && hand.CurrentMode == NPlayerHand.Mode.Play
+            && !hand.InCardPlay && ActiveScreenContext.Instance.IsCurrent(room);
+    }
+
+    // 某张牌在同步游戏规则上是否「可以发动特殊效果」：
     // 在手牌中 + 带「特殊效果」标签 + 本回合该卡名未发动过 + 卡自己判定条件成立。
-    // 供 SpecialEffectGlowPatch 复用，保证「发金光 = 真的能点」。
+    // 描边及执行入口复用；本机界面能否接受点击另由CanHandleLocal判断。
     public static bool CanActivate(CardModel? card)
     {
         if (card == null) return false;
@@ -67,7 +84,18 @@ public static class SpecialEffectHook
         // 演出期间退出战斗或移走卡牌时，不继续执行已失效的效果。
         if (card.CombatState != combat || card.Owner != player || card.Pile?.Type != PileType.Hand)
             return new(ActivationOutcome.ConditionChanged);
-        return await effect.ExecuteSpecialEffect(context, player);
+        bool completed = false;
+        try
+        {
+            var result = await CardEffectQueue.Run(() => effect.ExecuteSpecialEffect(context, player));
+            completed = true;
+            return result;
+        }
+        finally
+        {
+            // 正常完成且仍在状态中的卡由框架通知，避免重复；补齐框架不通知的异常/移除路径。
+            if (!completed || card.HasBeenRemovedFromState) card.InvokeExecutionFinished();
+        }
     }
 
     public static void Init()
@@ -76,11 +104,9 @@ public static class SpecialEffectHook
         _binding = ModRightClickRegistry.Register<CardModel>(
             Entry.ModId,
             "special_effect",
-            canHandle: ctx => ctx.Model is CardModel card
-                              && card.Pile?.Type == PileType.Hand
-                              && card.Tags.Contains(SelectTags.SpecialEffect)
-                              && !HasUsedThisTurn(ctx.Player, card)
-                              && card is ISpecialEffectCard effect && effect.CanActivateSpecialEffect(ctx.Player),
+            canHandleLocal: CanHandleLocal,
+            canExecute: ctx => ctx.Trigger.Source == ModRightClickSource.HandCard
+                               && ctx.Model is CardModel card && card.Owner == ctx.Player && CanActivate(card),
             execute: async ctx =>
             {
                 if (ctx.Model is not CardModel card || card is not ISpecialEffectCard) return;

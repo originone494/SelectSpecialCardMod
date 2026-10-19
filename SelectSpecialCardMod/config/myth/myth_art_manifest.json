@@ -1,0 +1,422 @@
+[
+  {
+    "id": "art_aolihagangdierjiejiecard",
+    "path": "res://SelectSpecialCardMod/images/cards/AoLiHaGangDiErJieJieCard.png"
+  },
+  {
+    "id": "art_aolihagangdisanjiejiecard",
+    "path": "res://SelectSpecialCardMod/images/cards/AoLiHaGangDiSanJieJieCard.png"
+  },
+  {
+    "id": "art_aolihagangtianshendangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/AoLiHaGangTianShenDangCard.png"
+  },
+  {
+    "id": "art_aoxilisidetiankonglongcard",
+    "path": "res://SelectSpecialCardMod/images/cards/AoXiLiSiDeTianKongLongCard.png"
+  },
+  {
+    "id": "art_beimandecanhuanzhuangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/BeiManDeCanHuanZhuangCard.png"
+  },
+  {
+    "id": "art_canhuanchaolongsanjitianlongcard",
+    "path": "res://SelectSpecialCardMod/images/cards/CanHuanChaoLongSanJiTianLongCard.png"
+  },
+  {
+    "id": "art_canhuankaimencard",
+    "path": "res://SelectSpecialCardMod/images/cards/CanHuanKaiMenCard.png"
+  },
+  {
+    "id": "art_canhuanshenglongshuangchatianlongcard",
+    "path": "res://SelectSpecialCardMod/images/cards/CanHuanShengLongShuangChaTianLongCard.png"
+  },
+  {
+    "id": "art_changshimingzicard",
+    "path": "res://SelectSpecialCardMod/images/cards/ChangShiMingZiCard.png"
+  },
+  {
+    "id": "art_daimanzhihucard",
+    "path": "res://SelectSpecialCardMod/images/cards/DaiManZhiHuCard.png"
+  },
+  {
+    "id": "art_daizuiadaicard",
+    "path": "res://SelectSpecialCardMod/images/cards/DaiZuiADaiCard.png"
+  },
+  {
+    "id": "art_fusudetiankongshencard",
+    "path": "res://SelectSpecialCardMod/images/cards/FuSuDeTianKongShenCard.png"
+  },
+  {
+    "id": "art_helusijiahucard",
+    "path": "res://SelectSpecialCardMod/images/cards/HeLuSiJiaHuCard.png"
+  },
+  {
+    "id": "art_helusirongguangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/HeLuSiRongGuangCard.png"
+  },
+  {
+    "id": "art_helusixiandaohabicard",
+    "path": "res://SelectSpecialCardMod/images/cards/HeLuSiXianDaoHaBiCard.png"
+  },
+  {
+    "id": "art_helusizhufucard",
+    "path": "res://SelectSpecialCardMod/images/cards/HeLuSiZhuFuCard.png"
+  },
+  {
+    "id": "art_hongleizhimoluoleicard",
+    "path": "res://SelectSpecialCardMod/images/cards/HongLeiZhiMoLuoLeiCard.png"
+  },
+  {
+    "id": "art_jinmanbingqianxuzhihucard",
+    "path": "res://SelectSpecialCardMod/images/cards/JinManBingQianXuZhiHuCard.png"
+  },
+  {
+    "id": "art_jiqiaoshecard",
+    "path": "res://SelectSpecialCardMod/images/cards/JiQiaoSheCard.png"
+  },
+  {
+    "id": "art_jueduimofashengjiejiecard",
+    "path": "res://SelectSpecialCardMod/images/cards/JueDuiMoFaShengJieJieCard.png"
+  },
+  {
+    "id": "art_kaisaidoujichangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/KaiSaiDouJiChangCard.png"
+  },
+  {
+    "id": "art_kemodashengguancard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoDaShengGuanCard.png"
+  },
+  {
+    "id": "art_kemohehejunwangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoHeHeJunWangCard.png"
+  },
+  {
+    "id": "art_kemoliangecard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoLianGeCard.png"
+  },
+  {
+    "id": "art_kemoluoleirizicard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoLuoLeiRiZiCard.png"
+  },
+  {
+    "id": "art_kemomojiankecard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoMoJianKeCard.png"
+  },
+  {
+    "id": "art_kemoshenshengguancard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoShenShengGuanCard.png"
+  },
+  {
+    "id": "art_kemoyongshengcard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoYongShengCard.png"
+  },
+  {
+    "id": "art_kemozanshengcard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoZanShengCard.png"
+  },
+  {
+    "id": "art_kemozhenhunguancard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoZhenHunGuanCard.png"
+  },
+  {
+    "id": "art_kemozhennurizicard",
+    "path": "res://SelectSpecialCardMod/images/cards/KeMoZhenNuRiZiCard.png"
+  },
+  {
+    "id": "art_kuangzhanshizhihuncard",
+    "path": "res://SelectSpecialCardMod/images/cards/KuangZhanShiZhiHunCard.png"
+  },
+  {
+    "id": "art_mohongshenlulicard",
+    "path": "res://SelectSpecialCardMod/images/cards/MoHongShenLuLiCard.png"
+  },
+  {
+    "id": "art_niaoniaoliangejideyishihuaicard",
+    "path": "res://SelectSpecialCardMod/images/cards/NiaoNiaoLianGeJiDeYiShiHuaiCard.png"
+  },
+  {
+    "id": "art_no41nishuimoshoucard",
+    "path": "res://SelectSpecialCardMod/images/cards/No41NiShuiMoShouCard.png"
+  },
+  {
+    "id": "art_qiangduocard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiangDuoCard.png"
+  },
+  {
+    "id": "art_qiangyubingjinmanzhihucard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiangYuBingJinManZhiHuCard.png"
+  },
+  {
+    "id": "art_qiangyubingqianxuzhihucard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiangYuBingQianXuZhiHuCard.png"
+  },
+  {
+    "id": "art_qiangyuertanyuzhihucard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiangYuErTanYuZhiHuCard.png"
+  },
+  {
+    "id": "art_qixingdaofashicard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiXingDaoFaShiCard.png"
+  },
+  {
+    "id": "art_qixingdaomonvcard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiXingDaoMoNvCard.png"
+  },
+  {
+    "id": "art_qixingdaomoshushicard",
+    "path": "res://SelectSpecialCardMod/images/cards/QiXingDaoMoShuShiCard.png"
+  },
+  {
+    "id": "art_shengjiejiedewunvcard",
+    "path": "res://SelectSpecialCardMod/images/cards/ShengJieJieDeWuNvCard.png"
+  },
+  {
+    "id": "art_shenzhimigaocard",
+    "path": "res://SelectSpecialCardMod/images/cards/ShenZhiMiGaoCard.png"
+  },
+  {
+    "id": "art_sihualiaoluanzhilingshicard",
+    "path": "res://SelectSpecialCardMod/images/cards/SiHuaLiaoLuanZhiLingShiCard.png"
+  },
+  {
+    "id": "art_sizhesushengcard",
+    "path": "res://SelectSpecialCardMod/images/cards/SiZheSuShengCard.png"
+  },
+  {
+    "id": "art_suiyuanshenhuaheticard",
+    "path": "res://SelectSpecialCardMod/images/cards/SuiYuanShenHuaHeTiCard.png"
+  },
+  {
+    "id": "art_tianbeilongbaibancard",
+    "path": "res://SelectSpecialCardMod/images/cards/TianBeiLongBaiBanCard.png"
+  },
+  {
+    "id": "art_tianbeilonghongzhongcard",
+    "path": "res://SelectSpecialCardMod/images/cards/TianBeiLongHongZhongCard.png"
+  },
+  {
+    "id": "art_tianbeilonghuanlucard",
+    "path": "res://SelectSpecialCardMod/images/cards/TianBeiLongHuanLuCard.png"
+  },
+  {
+    "id": "art_tianbeilonglvfacard",
+    "path": "res://SelectSpecialCardMod/images/cards/TianBeiLongLvFaCard.png"
+  },
+  {
+    "id": "art_tiancibaopaicard",
+    "path": "res://SelectSpecialCardMod/images/cards/TianCiBaoPaiCard.png"
+  },
+  {
+    "id": "art_tianzhiyuecard",
+    "path": "res://SelectSpecialCardMod/images/cards/TianZhiYueCard.png"
+  },
+  {
+    "id": "art_tizuiyangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/TiZuiYangCard.png"
+  },
+  {
+    "id": "art_tunshibaiwandebaoshishoucard",
+    "path": "res://SelectSpecialCardMod/images/cards/TunShiBaiWanDeBaoShiShouCard.png"
+  },
+  {
+    "id": "art_wangzhiguancard",
+    "path": "res://SelectSpecialCardMod/images/cards/WangZhiGuanCard.png"
+  },
+  {
+    "id": "art_xiaomingdebaopaicard",
+    "path": "res://SelectSpecialCardMod/images/cards/XiaoMingDeBaoPaiCard.png"
+  },
+  {
+    "id": "art_xingbaoqiliuzhancard",
+    "path": "res://SelectSpecialCardMod/images/cards/XingBaoQiLiuZhanCard.png"
+  },
+  {
+    "id": "art_xingqiugaizaocard",
+    "path": "res://SelectSpecialCardMod/images/cards/XingQiuGaiZaoCard.png"
+  },
+  {
+    "id": "art_yaojingchuanjibaixuecard",
+    "path": "res://SelectSpecialCardMod/images/cards/YaoJingChuanJiBaiXueCard.png"
+  },
+  {
+    "id": "art_yaoshengboshidinacard",
+    "path": "res://SelectSpecialCardMod/images/cards/YaoShengBoShiDiNaCard.png"
+  },
+  {
+    "id": "art_yaoshengfengshileiqinacard",
+    "path": "res://SelectSpecialCardMod/images/cards/YaoShengFengShiLeiQiNaCard.png"
+  },
+  {
+    "id": "art_yaoshenghuashiluxinacard",
+    "path": "res://SelectSpecialCardMod/images/cards/YaoShengHuaShiLuXiNaCard.png"
+  },
+  {
+    "id": "art_yaoshengyueshifuertunacard",
+    "path": "res://SelectSpecialCardMod/images/cards/YaoShengYueShiFuErTuNaCard.png"
+  },
+  {
+    "id": "art_yicunjiacard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiCunJiaCard.png"
+  },
+  {
+    "id": "art_yijieduozuihaicard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieDuoZuiHaiCard.png"
+  },
+  {
+    "id": "art_yijiefuyincard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieFuYinCard.png"
+  },
+  {
+    "id": "art_yijiehuangquanguocard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieHuangQuanGuoCard.png"
+  },
+  {
+    "id": "art_yijiemingshenfucard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieMingShenFuCard.png"
+  },
+  {
+    "id": "art_yijienailuocard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieNaiLuoCard.png"
+  },
+  {
+    "id": "art_yijieshenpancard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieShenPanCard.png"
+  },
+  {
+    "id": "art_yijietuaoneilacard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieTuAoNeiLaCard.png"
+  },
+  {
+    "id": "art_yijiewaerbolesicard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieWaErBoLeSiCard.png"
+  },
+  {
+    "id": "art_yijiexiewuercard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieXieWuErCard.png"
+  },
+  {
+    "id": "art_yijiexinnengucard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieXinNenGuCard.png"
+  },
+  {
+    "id": "art_yijiezhanyundicard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiJieZhanYunDiCard.png"
+  },
+  {
+    "id": "art_yixiangmingdiaoyincard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingDiaoYinCard.png"
+  },
+  {
+    "id": "art_yixiangmingemozhishengcard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingEMoZhiShengCard.png"
+  },
+  {
+    "id": "art_yixiangmingjuezecard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingJueZeCard.png"
+  },
+  {
+    "id": "art_yixiangmingqingzhucard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingQingZhuCard.png"
+  },
+  {
+    "id": "art_yixiangmingshenyifengbaoemocard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingShenYiFengBaoEMoCard.png"
+  },
+  {
+    "id": "art_yixiangmingtianmozhishengxuanjicard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingTianMoZhiShengXuanJiCard.png"
+  },
+  {
+    "id": "art_yixiangmingtianmozhishengxuanqicard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingTianMoZhiShengXuanQiCard.png"
+  },
+  {
+    "id": "art_yixiangmingtianshizhishengcard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingTianShiZhiShengCard.png"
+  },
+  {
+    "id": "art_yixiangmingyaoqingcard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingYaoQingCard.png"
+  },
+  {
+    "id": "art_yixiangmingyishenguangyaotianshicard",
+    "path": "res://SelectSpecialCardMod/images/cards/YiXiangMingYiShenGuangYaoTianShiCard.png"
+  },
+  {
+    "id": "art_yuchundefuzangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/YuChunDeFuZangCard.png"
+  },
+  {
+    "id": "art_yuchundemaizangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/YuChunDeMaiZangCard.png"
+  },
+  {
+    "id": "art_zengzhicard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZengZhiCard.png"
+  },
+  {
+    "id": "art_zhenzhushijiecard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhenZhuShiJieCard.png"
+  },
+  {
+    "id": "art_zhuleiaichangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiAiChangCard.png"
+  },
+  {
+    "id": "art_zhuleicanxiangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiCanXiangCard.png"
+  },
+  {
+    "id": "art_zhuleifanxiangcard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiFanXiangCard.png"
+  },
+  {
+    "id": "art_zhuleigudongcard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiGuDongCard.png"
+  },
+  {
+    "id": "art_zhuleijushecard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiJuSheCard.png"
+  },
+  {
+    "id": "art_zhuleikaleiduohatecard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiKaLeiDuoHaTeCard.png"
+  },
+  {
+    "id": "art_zhuleileinuohatecard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiLeiNuoHaTeCard.png"
+  },
+  {
+    "id": "art_zhuleilushakacard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiLuShaKaCard.png"
+  },
+  {
+    "id": "art_zhuleimeiluocard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiMeiLuoCard.png"
+  },
+  {
+    "id": "art_zhuleipixiancard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiPiXianCard.png"
+  },
+  {
+    "id": "art_zhuleisairencard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiSaiRenCard.png"
+  },
+  {
+    "id": "art_zhuleishuixiancard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiShuiXianCard.png"
+  },
+  {
+    "id": "art_zhuleixiaomeicard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiXiaoMeiCard.png"
+  },
+  {
+    "id": "art_zhuleizhuayincard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZhuLeiZhuaYinCard.png"
+  },
+  {
+    "id": "art_zuowandedaijiacard",
+    "path": "res://SelectSpecialCardMod/images/cards/ZuoWanDeDaiJiaCard.png"
+  }
+]

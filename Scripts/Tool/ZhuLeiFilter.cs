@@ -8,8 +8,7 @@ namespace SelectSpecialCardMod.Scripts.Tool;
 // 层级（子集向上兼容：挂了子标签的卡一定也挂父标签）：
 //   珠泪（所有珠泪卡）
 //     ├─ 珠泪怪兽        ← 所有怪兽，「含」融合怪兽
-//     │    ├─ 珠泪融合怪兽   （子集）
-//     │    └─ 珠泪下级怪兽   （= 珠泪怪兽 − 珠泪融合怪兽：融合素材/检索对象用这个）
+//     │    └─ 珠泪融合怪兽   （子集）
 //     ├─ 珠泪魔法
 //     └─ 珠泪陷阱
 //
@@ -28,9 +27,6 @@ public static class ZhuLeiFilter
     /// <summary>珠泪融合怪兽 = 珠泪怪兽 ＋ 融合怪兽。</summary>
     public static bool IsFusionMonster(CardModel c)
         => IsMonster(c) && c.Tags.Contains(SelectTags.RongHeGuaiShou);
-
-    /// <summary>珠泪下级怪兽 = 珠泪怪兽里非融合的那些（融合素材、检索对象）。</summary>
-    public static bool IsLowerMonster(CardModel c) => c.Tags.Contains(SelectTags.ZhuLeiXiaJiGuaiShou);
 
     /// <summary>珠泪魔法。</summary>
     public static bool IsSpell(CardModel c) => c.Tags.Contains(SelectTags.ZhuLeiMoFa);

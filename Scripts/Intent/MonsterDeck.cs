@@ -7,18 +7,19 @@ using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.GameActions.Multiplayer;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.ValueProps;
+using SelectSpecialCardMod.Scripts.Cards.Special;
 
 namespace SelectSpecialCardMod.Scripts.Intent;
 
 // 怪物牌堆（队列模型）。
-// 队列 = 「干涉层」（玩家塞入的废牌，排在队首）+「脚本层」（招式的固定循环）。
+// 当前队列 = 已抽出的废牌／招式；新塞入的废牌另存，下一次抽牌时才排入队首。
 //   · 每回合只打 1 张（队首）——回到原版「一回合一个动作」的节奏；
 //   · 不洗牌：招式按状态机顺序循环，打完的招式回到队尾；
 //   · 对账（Resync）：脚本队首必须等于状态机 NextMove，不等就按 NextMove 重建脚本
 //     （boss 的强制招式、条件/随机跳转都靠这条对齐，等价于「换阶段换牌堆」）；
 //   · 空过（HoldScript）：废牌打出的那一回合，状态机不推进、脚本原地不动，
 //     下一回合继续打本来该打的招式（眩晕用 ReachableMoves 的 STUNNED 特判体现）；
-//   · 换阶段 = 换牌堆：阶段键变化时整副重建（废牌、抢夺记录一并作废）。
+//   · 换阶段只重建脚本层：玩家已塞入的废牌保留，直到打出或战斗结束。
 internal static class MonsterDeck
 {
     internal const int MaxEnergy = 3;
@@ -27,9 +28,12 @@ internal static class MonsterDeck
     {
         // 队首 = 下一张要出的牌。前段是废牌（干涉层），后段是招式循环（脚本层）。
         public readonly List<CardModel> Queue = new();
+        // 不进入当前手牌，也不能在本次PlayTurn中顶替已经确定的意图。
+        public readonly List<CardModel> PendingJunk = new();
         public int Energy;
         public bool Built;
         public string PhaseKey = "";
+        public bool Resolving;
     }
 
     private static readonly Dictionary<Creature, Deck> Decks = new();
@@ -60,6 +64,9 @@ internal static class MonsterDeck
     internal static bool IsBuilt(Creature? creature)
         => creature != null && Decks.TryGetValue(creature, out var d) && d.Built;
 
+    internal static bool IsResolving(Creature? creature)
+        => creature != null && Decks.TryGetValue(creature, out var d) && d.Resolving;
+
     // 头顶展示 = 队首那 1 张（下一次要出的牌）
     internal static IReadOnlyList<CardModel> HandOf(Creature? creature)
     {
@@ -70,10 +77,24 @@ internal static class MonsterDeck
     }
 
     internal static IReadOnlyList<CardModel> DrawOf(Creature? creature)
-        => creature != null && Decks.TryGetValue(creature, out var d) ? d.Queue : None;
+    {
+        if (creature == null || !Decks.TryGetValue(creature, out var deck)) return None;
+        if (deck.PendingJunk.Count == 0) return deck.Queue;
+        int index = JunkPrefixLength(deck);
+        return deck.Queue.Take(index).Concat(deck.PendingJunk).Concat(deck.Queue.Skip(index)).ToList();
+    }
 
     // 队列模型下没有独立的弃牌堆（循环靠「打完回队尾」实现）
     internal static IReadOnlyList<CardModel> DiscardOf(Creature? creature) => None;
+
+    // 只读预览队列中尚未展示的后续行动，不抽牌、不推进状态机，也不启用PendingJunk。
+    // 当前招式不再额外回填到灰色队尾：实际打出后的循环由PlayTurn维护。
+    internal static IReadOnlyList<CardModel> FutureOf(Creature? creature)
+    {
+        if (creature == null || !IsBuilt(creature)) return None;
+        var current = HandOf(creature);
+        return DrawOf(creature).Where(c => !current.Any(now => ReferenceEquals(now, c))).ToList();
+    }
 
     internal static int EnergyOf(Creature? creature)
         => creature != null && Decks.TryGetValue(creature, out var d) ? d.Energy : 0;
@@ -90,6 +111,12 @@ internal static class MonsterDeck
         else RefreshPhase(enemy, deck);
         if (!deck.Built) return;   // 玩家上下文未就绪：下次 PrepareTurn 再试
         Resync(enemy, deck);
+        // 正常抽下一手时才启用新废牌，已有废牌仍按先来后到的顺序打出。
+        if (deck.PendingJunk.Count > 0)
+        {
+            deck.Queue.InsertRange(JunkPrefixLength(deck), deck.PendingJunk);
+            deck.PendingJunk.Clear();
+        }
         deck.Energy = MaxEnergy;
         IntentCardHook.FindOverlay(enemy)?.RefreshHand();
     }
@@ -98,6 +125,8 @@ internal static class MonsterDeck
     internal static async Task PlayTurn(Creature actor)
     {
         if (!Decks.TryGetValue(actor, out var deck)) return;
+        // 消耗/检索的连锁期间，不能重入同一敌人的意图执行或重复消耗应对卡。
+        if (deck.Resolving) return;
         // 被强夺：本手空过（不推进脚本——下一回合 RollMove 会自然越过被抢走的招式）
         if (PendingSkip.TryGetValue(actor, out int skip) && skip > 0)
         {
@@ -120,28 +149,43 @@ internal static class MonsterDeck
             return;
         }
 
-        deck.Energy -= cost;
-        deck.Queue.RemoveAt(0);
-        overlay?.OnCardPlayed(card);
-
-        // 废牌（干涉层）：只占一个行动位 → 空过，脚本不推进；「知识的诅咒」这类还会让它自己掉血
-        if (card is MonsterDisplayCard { IsPlaceholder: true } junk)
+        bool completed = false;
+        deck.Resolving = true;
+        try
         {
-            int selfDamage = junk.JunkSelfDamage;
-            if (selfDamage > 0)
-            {
-                await CreatureCmd.Damage(new BlockingPlayerChoiceContext(), actor, selfDamage,
-                    ValueProp.Unblockable | ValueProp.Unpowered, null, null, null);
-                junk.JunkPlayCount++;   // 下一次抽到更疼（7 → 11 → 15 …）
-            }
-            if (junk.JunkPersists) deck.Queue.Add(junk);   // 保留型废牌回到队尾（隔一圈再来）
-            HoldScript.Add(actor);
-            return;
-        }
+            deck.Energy -= cost;
+            deck.Queue.RemoveAt(0);
+            overlay?.OnCardPlayed(card);
 
-        // 招式（脚本层）：跑原生 move，然后回到队尾形成循环
-        await MonsterCardEffects.Play(actor, card);
-        deck.Queue.Add(card);
+            // 废牌（干涉层）：只占一个行动位；自伤也要全部结算后才通知界面补位。
+            if (card is MonsterDisplayCard { IsPlaceholder: true } junk)
+            {
+                int selfDamage = junk.JunkSelfDamage;
+                if (selfDamage > 0)
+                {
+                    await CreatureCmd.Damage(new BlockingPlayerChoiceContext(), actor, selfDamage,
+                        ValueProp.Unblockable | ValueProp.Unpowered, null, null, null);
+                    junk.JunkPlayCount++;
+                }
+                if (junk.JunkPersists) deck.Queue.Add(junk);
+                HoldScript.Add(actor);
+            }
+            else
+            {
+                // 应对先于整条原生招式；成功时连同攻击、强化、塞牌等全部跳过。
+                // 被取消的行动仍正常回队，原生外层负责记录和推进，不额外Hold或RollMove。
+                if (card is not MonsterMoveCard move || !await ZhuLeiZhuaYinCard.TryCancelIntent(actor, move))
+                    await MonsterCardEffects.Play(actor, card);
+                deck.Queue.Add(card);
+            }
+            completed = true;
+        }
+        finally
+        {
+            deck.Resolving = false;
+            // 只通知显示层，不等待动画，不提前抽牌或推进状态机。
+            if (overlay != null && Godot.GodotObject.IsInstanceValid(overlay)) overlay.OnCardResolved(completed);
+        }
     }
 
     // 强夺：把队首那张从本阶段的牌堆里移除（换阶段重建时恢复）。
@@ -165,17 +209,17 @@ internal static class MonsterDeck
     internal static void RegisterSteal(Creature creature)
         => PendingSkip[creature] = (PendingSkip.TryGetValue(creature, out int s) ? s : 0) + 1;
 
-    // 塞废牌：插到「已有未打出的废牌」之后，保证多张废牌按塞入顺序依次生效。
+    // 塞废牌只改变后续抽牌池。当前手牌、头顶意图及本次行动均不变。
     internal static void AddJunk(Creature enemy, IntentCardTheft.JunkKind kind)
     {
         var player = enemy.CombatState?.Players.OrderBy(p => p.NetId).FirstOrDefault();
         if (player == null) return;
         var deck = GetOrCreate(enemy);
-        if (!deck.Built) BuildPool(enemy, deck);
-        int i = 0;
-        while (i < deck.Queue.Count && deck.Queue[i] is MonsterDisplayCard { IsPlaceholder: true }) i++;
-        deck.Queue.Insert(i, MonsterDisplayCard.CreateJunkCard(player, kind));
+        deck.PendingJunk.Add(MonsterDisplayCard.CreateJunkCard(player, kind));
     }
+
+    private static int JunkPrefixLength(Deck deck)
+        => deck.Queue.TakeWhile(c => c is MonsterDisplayCard { IsPlaceholder: true }).Count();
 
     // 兼容旧调用：队列模型下「空手」只在队列为空时发生（异常情况），无需补抽
     internal static bool EnsureHand(Creature enemy) => false;
@@ -200,13 +244,16 @@ internal static class MonsterDeck
     {
         var player = enemy.CombatState?.Players.OrderBy(p => p.NetId).FirstOrDefault();
         if (player == null) return;   // 玩家上下文未就绪：下次再试（Built 保持 false，不接管）
+        var junk = deck.Queue.Where(c => c is MonsterDisplayCard { IsPlaceholder: true }).ToList();
         deck.Queue.Clear();
+        deck.Queue.AddRange(junk);
         deck.Queue.AddRange(IntentCardMapper.BuildMonsterPool(enemy, player));
         deck.Built = true;
         deck.PhaseKey = PhaseKeyOf(enemy);
     }
 
-    // 换阶段 = 换牌堆：可达招式集合变了就整副重建，同时作废废牌与抢夺记录（重建天然覆盖）
+    // 可达招式集合也会因一次性开场招式结束、击晕或分支变化而改变。
+    // 重建脚本时保留干涉层，避免尚未生效的废牌被下一次PrepareTurn静默清掉。
     private static void RefreshPhase(Creature enemy, Deck deck)
     {
         string key = PhaseKeyOf(enemy);

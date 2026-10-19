@@ -23,6 +23,8 @@ public static class YiXiangMingInvitationProbe
     private static readonly List<string> Events = [];
     private static bool _cancel, _failPlay;
     private static CardModel? _retrieved;
+    private static string? _extraAddFailure;
+    private static CardModel? _failedExtraCard;
 
     public static async Task Check()
     {
@@ -69,7 +71,7 @@ public static class YiXiangMingInvitationProbe
                 || !owner.RunState.ContainsCard(temporary) || temporary.CombatState != null || !PendulumExtraDeck.IsTemporary(temporary))
                 throw new Exception("Ordered retrieval did not create distinct hand/combat-only extra-deck cards.");
             var marker = temporary.Capabilities().All.OfType<TemporaryPendulumExtraCapability>().Single();
-            var restored = new TemporaryPendulumExtraCapability(); restored.LoadState(marker.SaveState(), 1);
+            var restored = ModelCapabilityRegistry.Create<TemporaryPendulumExtraCapability>(); restored.LoadState(marker.SaveState(), 1);
             var copy = owner.Creature.CombatState!.CloneCard(temporary);
             if (!restored.Temporary || PendulumExtraDeck.IsTemporary(copy) || !PendulumExtraDeck.IsTemporary(temporary))
                 throw new Exception("Temporary provenance failed persistence or leaked onto a summoned clone.");
@@ -79,6 +81,29 @@ public static class YiXiangMingInvitationProbe
             if (owner.RunState.ContainsCard(temporary) || Entry.ExtraPile.GetPile(owner).Cards.Count != 1
                 || configured.Pile?.Type != Entry.ExtraPile || selector.Ordered[0].Pile?.Type != PileType.Hand)
                 throw new Exception("Combat cleanup removed configured extra cards or retained a temporary asset.");
+
+            // 注册表已有规范实例后，重复创建必须得到独立标记，且不污染规范状态。
+            await PendulumExtraDeck.AddTemporary(owner, ModelDb.Card<YiXiangMingTianShiZhiShengCard>());
+            await PendulumExtraDeck.AddTemporary(owner, ModelDb.Card<YiXiangMingTianShiZhiShengCard>());
+            var repeated = Entry.ExtraPile.GetPile(owner).Cards.Where(PendulumExtraDeck.IsTemporary).ToList();
+            var markers = repeated.Select(c => c.Capabilities().All.OfType<TemporaryPendulumExtraCapability>().Single()).ToList();
+            if (repeated.Count != 2 || ReferenceEquals(markers[0], markers[1])
+                || ModelDb.GetById<TemporaryPendulumExtraCapability>(ModelDb.GetId<TemporaryPendulumExtraCapability>()).Temporary)
+                throw new Exception("Repeated temporary creation reused/mutated a registered canonical capability.");
+            PendulumExtraDeck.ClearTemporary(owner);
+            foreach (var failure in new[] { "refused", "throw" })
+            {
+                _extraAddFailure = failure;
+                _failedExtraCard = null;
+                bool threw = false;
+                try { await PendulumExtraDeck.AddTemporary(owner, ModelDb.Card<YiXiangMingTianShiZhiShengCard>()); }
+                catch (InvalidOperationException ex) when (ex.Message == "probe extra add failed") { threw = true; }
+                finally { _extraAddFailure = null; }
+                if (threw != (failure == "throw") || _failedExtraCard == null
+                    || owner.RunState.ContainsCard(_failedExtraCard) || _failedExtraCard.Pile != null
+                    || Entry.ExtraPile.GetPile(owner).Cards.Count != 1)
+                    throw new Exception("Failed temporary extra-deck creation leaked a run card or disturbed configured cards.");
+            }
 
             var noSupport = NewPlayer();
             var unsupported = (YiXiangMingYaoQingCard)ArrivalEquipmentProbe.AddCard(typeof(YiXiangMingYaoQingCard), noSupport, PileType.Play);
@@ -124,7 +149,7 @@ public static class YiXiangMingInvitationProbe
                 }
             }
         }
-        finally { h.UnpatchAll(h.Id); _retrieved = null; _cancel = _failPlay = false; Events.Clear(); }
+        finally { h.UnpatchAll(h.Id); _retrieved = _failedExtraCard = null; _extraAddFailure = null; _cancel = _failPlay = false; Events.Clear(); }
         GD.Print("PASS: invitation branches/ordered destinations, temporary assets/clone isolation, sequential hand-extra summon, extra-only/cancel/blocked cases and once-per-combat use.");
     }
 
@@ -148,7 +173,17 @@ public static class YiXiangMingInvitationProbe
         return new() { success = true, cardAdded = card, oldPile = old, targetPile = pile };
     }
     public static bool Add(CardModel card, PileType newPileType, ref Task<CardPileAddResult> __result)
-    { __result = Task.FromResult(Move(card, newPileType)); return false; }
+    {
+        if (newPileType == Entry.ExtraPile && _extraAddFailure != null)
+        {
+            _failedExtraCard = card;
+            __result = _extraAddFailure == "throw"
+                ? Task.FromException<CardPileAddResult>(new InvalidOperationException("probe extra add failed"))
+                : Task.FromResult(new CardPileAddResult { success = false, cardAdded = card, oldPile = card.Pile, targetPile = newPileType });
+            return false;
+        }
+        __result = Task.FromResult(Move(card, newPileType)); return false;
+    }
     public static bool Retrieve(Func<CardModel, bool> filter, RetrievalOptions options, ref Task<List<CardModel>> __result)
     {
         if (_retrieved == null || !filter(_retrieved) || options.Minimum != 1 || !options.Confirm)
@@ -189,7 +224,12 @@ public static class YiXiangMingInvitationProbe
         {
             var cards = options.ToList();
             if (cards.All(c => c is EffectChoiceCard))
-            { Choices++; return Task.FromResult<IEnumerable<CardModel>>([cards[Option]]); }
+            {
+                if (cards.Cast<EffectChoiceCard>().Any(c => c.AssetProfile.VisualStyle != STS2RitsuLib.Scaffolding.Content.CardVisualStyle.Ancient
+                    || c.AssetProfile.PortraitPath?.EndsWith("YiXiangMingYaoQingCard.png") != true))
+                    throw new Exception("Invitare choices did not inherit its illustration/layout.");
+                Choices++; return Task.FromResult<IEnumerable<CardModel>>([cards[Option]]);
+            }
             if (minSelect != 1 || maxSelect != 1 || cards.Any(c => Ordered.Any(p => p.Id == c.Id)))
                 throw new Exception("Ordered retrieval allowed zero/multiple cards or a duplicate name.");
             Ordered.Add(cards[0]); return Task.FromResult<IEnumerable<CardModel>>([cards[0]]);

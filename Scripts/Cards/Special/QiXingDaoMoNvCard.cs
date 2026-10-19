@@ -36,7 +36,7 @@ public class QiXingDaoMoNvCard : SelectSpecialBaseCard
         if (handCards.Count == 0) return;
 
         var selectedCard = (await CardSelectCmd.FromHand(
-            prefs: CardPrefs(this, DiscardNamedPrompt, 0, 1),
+            prefs: CardPrefs(this, DiscardNamedPrompt, 1, 1),
             context: choiceContext,
             player: Owner,
             filter: null,

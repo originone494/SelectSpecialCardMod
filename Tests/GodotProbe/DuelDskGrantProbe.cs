@@ -5,8 +5,10 @@ using MegaCrit.Sts2.Core.Entities.Players;
 using MegaCrit.Sts2.Core.Entities.Relics;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Relics;
+using MegaCrit.Sts2.Core.Runs;
 using SelectSpecialCardMod.Scripts.Relics;
 using SelectSpecialCardMod.Scripts.Tool;
+using STS2RitsuLib.RunData;
 
 public static class DuelDskGrantProbe
 {
@@ -14,6 +16,10 @@ public static class DuelDskGrantProbe
 
     public static async Task Check()
     {
+        CardAvailability.Register(); DuelDskGrant.Register(); DuelDskGrant.Register();
+        if (!new CardContentPreferences().GrantDuelDiskAtStart
+            || !System.Text.Json.JsonSerializer.Deserialize<CardContentRunPolicy>("{\"Version\":1,\"OnlyYuGiOh\":true}")!.GrantDuelDiskAtStart)
+            throw new Exception("The Duel Disk option changed defaults or old run-policy compatibility.");
         var h = new Harmony("scm.duel-disk-grant.godot-framework");
         try
         {
@@ -29,8 +35,46 @@ public static class DuelDskGrantProbe
             AssertSingleDisk(fresh);
             if (_obtained != 1 || fresh.GetRelic<DuelDskRelic>()!.Rarity != RelicRarity.Starter)
                 throw new Exception("New runs did not receive exactly one starter Duel Disk.");
+            fresh.RemoveRelicInternal(fresh.GetRelic<DuelDskRelic>()!);
+            await DuelDskGrant.Grant(fresh);
+            if (_obtained != 1 || fresh.GetRelic<DuelDskRelic>() != null)
+                throw new Exception("A lost Duel Disk was automatically reissued during later preparation.");
+
+            var disabled = NewPlayer();
+            SetAutoGrant(disabled, false);
+            _obtained = 0;
+            await DuelDskGrant.Grant(disabled);
+            await DuelDskGrant.Grant(disabled);
+            if (_obtained != 0 || disabled.GetRelic<DuelDskRelic>() != null)
+                throw new Exception("Disabled runs still received a Duel Disk.");
+            var manuallyOwned = ModelDb.Relic<DuelDskRelic>().ToMutable();
+            disabled.AddRelicInternal(manuallyOwned);
+            await DuelDskGrant.Grant(disabled);
+            if (!ReferenceEquals(disabled.GetRelic<DuelDskRelic>(), manuallyOwned) || _obtained != 0)
+                throw new Exception("Disabled configuration removed or replaced an existing Duel Disk.");
+
+            // 同一局中两名玩家采用相反的本人设置，各端保存同样的逐玩家快照。
+            var personalOn = NewPlayer();
+            var personalOff = NewPlayer();
+            AccessTools.Field(typeof(Player), "<NetId>k__BackingField").SetValue(personalOn, 101UL);
+            AccessTools.Field(typeof(Player), "<NetId>k__BackingField").SetValue(personalOff, 202UL);
+            AccessTools.Field(typeof(Player), "_runState").SetValue(personalOff, personalOn.RunState);
+            var policy = (RunSavedData<CardContentRunPolicy>)AccessTools.Field(typeof(CardAvailability), "_runPolicy").GetValue(null)!;
+            policy.Set((RunState)personalOn.RunState, new() { Version = 3, GrantDuelDiskAtStart = false });
+            var grants = (PlayerRunSavedData<DuelDskGrantState>)AccessTools.Field(typeof(DuelDskGrant), "_saved").GetValue(null)!;
+            grants.Set((RunState)personalOn.RunState, personalOn.NetId, new() { PreferenceResolved = true, GrantAtStart = true });
+            grants.Set((RunState)personalOff.RunState, personalOff.NetId, new() { PreferenceResolved = true, GrantAtStart = false });
+            _obtained = 0;
+            await DuelDskGrant.Grant(personalOn);
+            await DuelDskGrant.Grant(personalOff);
+            await DuelDskGrant.Grant(personalOn);
+            await DuelDskGrant.Grant(personalOff);
+            if (_obtained != 1 || personalOn.GetRelic<DuelDskRelic>() == null || personalOff.GetRelic<DuelDskRelic>() != null
+                || !grants.Get(personalOn).InitialGrantHandled || !grants.Get(personalOff).InitialGrantHandled)
+                throw new Exception("A player's personal Duel Disk preference affected their teammate or used the old host setting.");
 
             var loaded = NewPlayer();
+            SetAutoGrant(loaded, false); // 关闭新发放仍必须迁移已拥有的兼容遗物。
             loaded.AddRelicInternal(ModelDb.Relic<BurningBlood>().ToMutable());
             var legacy = ModelDb.Relic<DeadEndRedRelic>().ToMutable();
             legacy.FloorAddedToDeck = 7;
@@ -64,7 +108,13 @@ public static class DuelDskGrantProbe
                 throw new Exception("Legacy relic cannot deserialize, or is still allowed as a new reward.");
         }
         finally { h.UnpatchAll(h.Id); _obtained = 0; }
-        GD.Print("PASS: new runs obtain one starter Duel Disk; legacy IDs resolve and replace in place with the original floor; existing Duel Disks stay intact while all legacy duplicates are removed; repeated preparation is idempotent.");
+        GD.Print("PASS: personal per-player Duel Disk settings are isolated within one run; default/legacy grants, disabled grants, no reissue after loss, legacy migration and idempotent preparation are preserved.");
+    }
+
+    private static void SetAutoGrant(Player player, bool enabled)
+    {
+        var policy = (RunSavedData<CardContentRunPolicy>)AccessTools.Field(typeof(CardAvailability), "_runPolicy").GetValue(null)!;
+        policy.Set((RunState)player.RunState, new() { Version = 2, GrantDuelDiskAtStart = enabled });
     }
 
     private static Player NewPlayer()

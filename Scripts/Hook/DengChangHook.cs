@@ -11,6 +11,7 @@ using MegaCrit.Sts2.Core.Models;
 using STS2RitsuLib.Keywords;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Tool;
+using SelectSpecialCardMod.Scripts.Rules;
 
 namespace SelectSpecialCardMod.Scripts.Hook;
 
@@ -49,7 +50,7 @@ public static class DengChangHook
         // 正在被 Draw 添加的这张卡不算"因效果加入手牌"
         if (DrawWindowPatch.IsDrawing(card)) return;
 
-        await Trigger(card);
+        await CardEffectQueue.Schedule(card, () => Trigger(card), () => card.Pile?.Type == PileType.Hand);
     }
 
     private static async Task Trigger(CardModel card)

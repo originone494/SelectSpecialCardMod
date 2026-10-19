@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Godot;
+using MegaCrit.Sts2.Core.Combat;
 using MegaCrit.Sts2.Core.Commands;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
@@ -83,14 +84,15 @@ public abstract class MonsterDisplayCard : SelectSpecialBaseCard, IMonsterDispla
     {
         if (target == null) return;
         // 路线 A：废牌直接进该怪抽牌堆（牌堆里的一张普通牌），下次被抽到时顶掉一个出牌机会
-        if (MonsterDeck.IsBuilt(target))
+        // 牌堆尚未初始化时也走同一路径；否则会塞入旧废牌池，路线A永远不会读取它。
+        if (target.IsMonster && target.Side == CombatSide.Enemy
+            && (!FeatureStatus.Checked || FeatureStatus.MonsterDeck))
         {
             MonsterDeck.AddJunk(target, kind);
             return;
         }
         IntentCardTheft.AddJunk(target, kind);
-        // 立刻重抽：废牌（若被抽中）马上显示在怪物头顶
-        IntentCardHook.FindOverlay(target)?.RequestRebuild();
+        // 兼容流程同样等待正常换手，不因塞牌主动重抽当前意图。
     }
 
     // 废牌卡面：由 overlay 在抽中后显示。无任何效果，只占怪物的一个行动位。

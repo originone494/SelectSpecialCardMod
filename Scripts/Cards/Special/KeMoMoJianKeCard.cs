@@ -120,7 +120,7 @@ public class KeMoMoJianKeCard : SelectSpecialBaseCard, ISpecialEffectCard, IShiJ
         PerTurnOnce.Mark(player, ShiJiOnceKey);
 
         // 额外怪兽 → 额外堆；其他的卡 → 抽牌堆
-        if (picked.Tags.Contains(SelectTags.ExtraMonster))
+        if (CardClassification.IsExtraMonster(picked))
             await ExtraDeckSeries.ReturnExtraMonster(player, picked);   // 额外怪兽：持久卡还给额外堆，副本退场
         else
             await SelectToolCmd.ReturnCardToPile(picked, PileType.Draw);

@@ -19,7 +19,7 @@ public abstract class YiXiangMingChoiceCard : SelectSpecialBaseCard
     protected YiXiangMingChoiceCard() : base(0, CardType.Skill, CardRarity.Ancient, TargetType.Self) { }
 
     protected override HashSet<CardTag> CanonicalTags => [SelectTags.YiXiangMing, SelectTags.YiXiangMingMoFa];
-    public override IEnumerable<CardKeyword> CanonicalKeywords => [];
+    public override IEnumerable<CardKeyword> CanonicalKeywords => [CardKeyword.Exhaust];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.YiXiangMing),
@@ -46,9 +46,10 @@ public abstract class YiXiangMingChoiceCard : SelectSpecialBaseCard
         {
             var one = combat.CreateCard<EffectOneCard>(Owner);
             var two = combat.CreateCard<EffectTwoCard>(Owner);
+            one.UseAppearanceOf(this);
+            two.UseAppearanceOf(this);
             one.EffectText = new LocString("cards", Id.Entry + ".option1").GetFormattedText();
             two.EffectText = new LocString("cards", Id.Entry + ".option2").GetFormattedText();
-            one.PortraitSourceClassName = two.PortraitSourceClassName = GetType().Name;
             // 与原版飞溅相同的双卡选择界面；必须选择其中一项。
             var selected = await CardSelectCmd.FromChooseACardScreen(context, [one, two], Owner, canSkip: false);
             if (selected != one && selected != two) return;

@@ -11,7 +11,5 @@ public class YiXiangMingZhiShiWuPower : SelectSpecialBasePower
 {
     public override PowerType Type => PowerType.Buff;
     public override PowerStackType StackType => PowerStackType.Counter;
-    public override PowerAssetProfile AssetProfile => new(
-        IconPath: "res://SelectSpecialCardMod/images/powers/ZhongYanDeDaoJiShiPower.png",
-        BigIconPath: "res://SelectSpecialCardMod/images/powers/ZhongYanDeDaoJiShiPower.png");
+
 }

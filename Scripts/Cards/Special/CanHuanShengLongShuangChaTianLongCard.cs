@@ -26,7 +26,7 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 //   登场：从消耗堆将1张「天杯龙」或「灿幻怪兽」加入手牌
 //   时机（一回合一次，右键弃牌堆按钮发动）：攻击牌打出3次以上的回合，
 //         将这张卡从弃牌堆加入手牌，本回合可以免费打出，之后可以从手牌消耗1张技能牌
-public class CanHuanShengLongShuangChaTianLongCard : SelectSpecialBaseCard, IDengChangCard, IShiJiCard
+public class CanHuanShengLongShuangChaTianLongCard : SelectSpecialBaseCard, IDengChangCard, IShiJiCard, IExtraDeckSummonCard
 {
     public CanHuanShengLongShuangChaTianLongCard() : base(2, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
     {
@@ -39,6 +39,10 @@ public class CanHuanShengLongShuangChaTianLongCard : SelectSpecialBaseCard, IDen
 
     public override int StarLevel => 7;
 
+    public bool CanSummonFromExtraDeck(Player player) => SynchroSummon.CanSummon(this, player);
+    public Task<bool> PaySummonCost(PlayerChoiceContext context, Player player)
+        => SynchroSummon.PayMaterials(context, this, player);
+
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.LongZu,
         ..StarTags,
@@ -46,8 +50,8 @@ public class CanHuanShengLongShuangChaTianLongCard : SelectSpecialBaseCard, IDen
         SelectTags.CanHuanGuaiShou,
         SelectTags.DengChang,
         SelectTags.TongBu,
+        SelectTags.TongBuGuaiShou,
         SelectTags.ShiJi,
-        SelectTags.ExtraMonster,
     ];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [
@@ -57,6 +61,7 @@ public class CanHuanShengLongShuangChaTianLongCard : SelectSpecialBaseCard, IDen
         HoverTipFactory.FromKeyword(SelectKeywords.LongZu),
         ..StarHoverTips,
         HoverTipFactory.FromKeyword(SelectKeywords.TongBu),
+        HoverTipFactory.FromKeyword(SelectKeywords.TongBuGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.TiaoZheng),
         HoverTipFactory.FromKeyword(SelectKeywords.CanHuanGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.DengChang),

@@ -26,11 +26,16 @@ public class SiLingDeYouHuoPower : SelectSpecialBasePower
         if (card.Owner?.Creature != Owner) return Task.CompletedTask;
         if (CombatState == null) return Task.CompletedTask;
 
-        Flash();
-
-        Creature? enemy = Owner.Player!.RunState.Rng.CombatTargets.NextItem(CombatState.HittableEnemies);
-        if (enemy == null) return Task.CompletedTask;
-
-        return CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), enemy, 3m, ValueProp.Move, Owner, null, null);
+        var owner = Owner;
+        var combat = CombatState;
+        return SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Schedule(async () =>
+        {
+            if (Owner != owner || CombatState != combat || !owner.IsAlive || !owner.Powers.Contains(this)
+                || MegaCrit.Sts2.Core.Combat.CombatManager.Instance.IsOverOrEnding) return;
+            Flash();
+            Creature? enemy = owner.Player!.RunState.Rng.CombatTargets.NextItem(combat.HittableEnemies);
+            if (enemy == null) return;
+            await CreatureCmd.Damage(new ThrowingPlayerChoiceContext(), enemy, 3m, ValueProp.Move, owner, null, null);
+        });
     }
 }

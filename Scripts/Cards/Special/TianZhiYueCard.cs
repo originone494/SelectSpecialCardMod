@@ -33,7 +33,6 @@ public class TianZhiYueCard : SelectSpecialBaseCard, IExtraDeckSummonCard
     };
 
     protected override HashSet<CardTag> CanonicalTags => [
-        SelectTags.ExtraMonster,
         SelectTags.GuangEMo,
         SelectTags.Link2,
     ];
@@ -41,7 +40,6 @@ public class TianZhiYueCard : SelectSpecialBaseCard, IExtraDeckSummonCard
     public override IEnumerable<CardKeyword> CanonicalKeywords => [];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),
         HoverTipFactory.FromKeyword(SelectKeywords.Link2),
     ];
@@ -56,7 +54,10 @@ public class TianZhiYueCard : SelectSpecialBaseCard, IExtraDeckSummonCard
     }
 
     public bool CanSummonFromExtraDeck(Player player)
-        => PileType.Hand.GetPile(player).Cards.Count(c => c.Type == CardType.Attack) >= 2;
+        => PileType.Hand.GetPile(player).Cards.Count(IsMaterial) >= 2;
+
+    private static bool IsMaterial(CardModel card)
+        => card.Type == CardType.Attack && MaterialPayment.CanUseAsMaterial(card);
 
     public async Task<bool> PaySummonCost(PlayerChoiceContext ctx, Player player)
     {
@@ -69,17 +70,13 @@ public class TianZhiYueCard : SelectSpecialBaseCard, IExtraDeckSummonCard
             prefs: new CardSelectorPrefs(prompt, 0, 2) { RequireManualConfirmation = true },
             context: ctx,
             player: player,
-            filter: c => c.Type == CardType.Attack,
+            filter: IsMaterial,
             // 手动召唤不经过 CardModel 的打出流程，不会触发 ExecutionFinished。
             // 原版手牌选择支持空来源：确认后立即恢复选中卡的手牌节点，
             // 避免未选够素材而返回时，卡牌仍留在屏幕中央等待结束通知。
             source: null!)).ToList();
         if (chosen.Count < 2) return false;
 
-        foreach (var card in chosen)
-        {
-            await CardCmd.Exhaust(ctx, card);
-        }
-        return true;
+        return await MaterialPayment.Exhaust(ctx, player, chosen, 2, PileType.Hand);
     }
 }

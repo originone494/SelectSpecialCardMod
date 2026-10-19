@@ -102,23 +102,26 @@ public class YiXiangMingTianMoZhiShengXuanQiCard : SelectSpecialBaseCard
             || power.Owner != Owner.Creature || (int)amount <= 0) return;
 
         CounterProgress += (int)amount;
-        if (_zhuChangPending) return;
+        if (_zhuChangPending || CounterProgress < 3) return;
         _zhuChangPending = true;
         var combat = CombatState;
-        try
+        await SelectSpecialCardMod.Scripts.Rules.CardEffectQueue.Schedule(async () =>
         {
-            // 连锁中再次获得指示物只追加进度，由外层依次结算，避免重复或漏掉触发。
-            while (CounterProgress >= 3 && ZhuChangApplies && CombatState == combat)
+            try
             {
-                if (!await ZhuChangEffectVfx.Play(this, power)) break;
-                if (!ZhuChangApplies || CombatState != combat) break;
-                CounterProgress -= 3;
-                var enemies = combat!.HittableEnemies.ToList();
-                if (enemies.Count > 0)
-                    await CreatureCmd.Damage(choiceContext, enemies, 20m, ValueProp.Unpowered,
-                        Owner.Creature, this, null);
+                // 计数即时更新，伤害作为衍生效果排队；后续指示物只追加进度，不重复入队。
+                while (CounterProgress >= 3 && ZhuChangApplies && CombatState == combat)
+                {
+                    if (!await ZhuChangEffectVfx.Play(this, power)) break;
+                    if (!ZhuChangApplies || CombatState != combat) break;
+                    CounterProgress -= 3;
+                    var enemies = combat!.HittableEnemies.ToList();
+                    if (enemies.Count > 0)
+                        await CreatureCmd.Damage(choiceContext, enemies, 20m, ValueProp.Unpowered,
+                            Owner.Creature, this, null);
+                }
             }
-        }
-        finally { _zhuChangPending = false; }
+            finally { _zhuChangPending = false; }
+        }, () => _zhuChangPending = false);
     }
 }

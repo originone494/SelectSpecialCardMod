@@ -22,7 +22,7 @@ namespace SelectSpecialCardMod.Scripts.Tool;
 //   ② 按它的素材需求，从消耗堆**一张一张**选素材；每一步只展示"选它之后剩下的槽位仍然凑得齐"的卡，
 //      已被选过的卡不再出现；
 //   ③ 中途**可以取消**（取消 = 整次特殊效果作废，什么都不消耗）；
-//   ④ 选满后：素材返回抽牌堆（带「额外怪兽」的返回额外堆），额外堆那只融合怪兽移出、战斗副本加入手牌。
+//   ④ 选满后：素材返回抽牌堆（按怪兽分类判定为额外怪兽的返回额外堆），额外堆那只融合怪兽移出、战斗副本加入手牌。
 public sealed record KeMoFusionMaterial(Func<CardModel, bool> Filter, int Count)
 {
     /// <summary>按标签筛选（例如：光恶魔 ×2）。</summary>
@@ -47,6 +47,9 @@ public enum KeMoFusionDestination
 
 public static class KeMoFusion
 {
+    private static List<CardModel> MaterialPool(Player player, Func<Player, List<CardModel>> poolProvider)
+        => poolProvider(player).Where(MaterialPayment.CanUseAsMaterial).Distinct().ToList();
+
     /// <summary>素材池就是某个牌堆（大圣棺＝消耗堆，咏圣＝手牌）。</summary>
     public static Func<Player, List<CardModel>> PilePool(PileType pile)
         => player => pile.GetPile(player)?.Cards.ToList() ?? [];
@@ -57,7 +60,7 @@ public static class KeMoFusion
 
     private static List<CardModel> Candidates(Player player, Func<Player, List<CardModel>> poolProvider)
     {
-        var pool = poolProvider(player);
+        var pool = MaterialPool(player, poolProvider);
         return ExtraDeckSeries.Cards(player)
             .Where(c => c is IKeMoFusionMonster)
             .Where(c => Feasible(SlotsOf(((IKeMoFusionMonster)c).FusionMaterials), pool))
@@ -92,14 +95,14 @@ public static class KeMoFusion
         // ② 逐张选素材
         var mats = fusion.FusionMaterials;
         var remaining = mats.Select(m => m.Count).ToArray();
-        var pool = poolProvider(player);
+        var pool = MaterialPool(player, poolProvider);
         var chosen = new List<CardModel>();
 
         // 注意：不能写成 `chosen.Count < remaining.Sum()`——选掉一张后 chosen 变大、remaining 变小，
         // 两边会同时逼近，第 1 张就判成"选够了"。这里按"还剩几个槽位"判断。
         while (remaining.Sum() > 0)
         {
-            var available = pool.Where(c => !chosen.Contains(c)).ToList();
+            var available = pool.Where(c => MaterialPayment.CanUseAsMaterial(c) && !chosen.Contains(c)).ToList();
 
             // 候选 = "选它之后剩下的槽位仍然凑得齐"的卡；同时记住它占的是哪个槽位
             var allowed = new List<CardModel>();
@@ -136,7 +139,7 @@ public static class KeMoFusion
 
         // ③ 选择全部完成后才支付；取消不会消耗来源、素材或发动次数。
         var template = ModelDb.AllCards.FirstOrDefault(c => c.GetType() == chosenMonster.GetType());
-        var currentPool = poolProvider(player);
+        var currentPool = MaterialPool(player, poolProvider);
         if (template == null || chosenMonster.Pile?.Type != Entry.ExtraPile
             || chosen.Any(c => c.Owner != player || !currentPool.Contains(c) || c.HasBeenRemovedFromState))
             return false;
@@ -150,13 +153,14 @@ public static class KeMoFusion
         foreach (var mat in chosen)
         {
             if (CombatManager.Instance.IsOverOrEnding) return false;
+            if (!MaterialPayment.CanUseAsMaterial(mat)) return false;
             if (destination == KeMoFusionDestination.Exhaust)
             {
                 // 消耗素材：如果它正作为装备挂在别人身上，先卸掉那个组件
                 if (!await KeMoEquip.ExhaustMaterial(ctx, mat)) return false;
                 continue;
             }
-            if (mat.Tags.Contains(SelectTags.ExtraMonster))
+            if (CardClassification.IsExtraMonster(mat))
             {
                 if (!await ExtraDeckSeries.ReturnExtraMonster(player, mat)) return false;
             }
@@ -221,7 +225,7 @@ public static class KeMoFusion
     }
 
     // 与 SelectSpecialBaseCard.CardPrefs 同款：克隆提示再注入卡名
-    private static CardSelectorPrefs Prefs(CardModel source, LocString prompt, int min, int max, bool confirm = false)
+    private static CardSelectorPrefs Prefs(CardModel source, LocString prompt, int min, int max, bool confirm = true)
     {
         var p = new LocString(prompt.LocTable, prompt.LocEntryKey);
         if (source != null) p.Add("CardName", source.Title);

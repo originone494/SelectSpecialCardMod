@@ -33,7 +33,7 @@ public class QiangYuBingJinManZhiHuCard : SelectSpecialBaseCard
             Owner,
             Entry.ChuWaiPile,
             _exileCards,
-            filter: c => c.Tags.Contains(SelectTags.ExtraMonster));
+            filter: c => CardClassification.IsExtraMonster(c));
 
         // 抽2张牌
         await CardPileCmd.Draw(choiceContext, _drawCount, Owner);

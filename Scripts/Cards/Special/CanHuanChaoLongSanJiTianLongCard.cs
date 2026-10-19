@@ -25,7 +25,7 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 //   登场（一场战斗一次，因效果加入手牌时触发）：将手牌所有的攻击卡打出，打出后立刻返回手牌
 //   时机（一回合一次，右键弃牌堆按钮发动）：攻击牌打出3次以上的回合，
 //         将这张卡从弃牌堆加入手牌，本回合可以免费打出，之后可以丢弃1张手牌
-public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChangCard, IShiJiCard
+public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChangCard, IShiJiCard, IExtraDeckSummonCard
 {
     public CanHuanChaoLongSanJiTianLongCard() : base(3, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
     {
@@ -38,14 +38,18 @@ public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChan
 
     public override int StarLevel => 10;
 
+    public bool CanSummonFromExtraDeck(Player player) => SynchroSummon.CanSummon(this, player);
+    public Task<bool> PaySummonCost(PlayerChoiceContext context, Player player)
+        => SynchroSummon.PayMaterials(context, this, player);
+
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.LongZu,
         ..StarTags,
         SelectTags.CanHuanGuaiShou,
         SelectTags.TongBu,
+        SelectTags.TongBuGuaiShou,
         SelectTags.DengChang,
         SelectTags.ShiJi,
-        SelectTags.ExtraMonster,
     ];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [
@@ -55,6 +59,7 @@ public class CanHuanChaoLongSanJiTianLongCard : SelectSpecialBaseCard, IDengChan
         HoverTipFactory.FromKeyword(SelectKeywords.LongZu),
         ..StarHoverTips,
         HoverTipFactory.FromKeyword(SelectKeywords.TongBu),
+        HoverTipFactory.FromKeyword(SelectKeywords.TongBuGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.CanHuanGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.DengChang),
         HoverTipFactory.FromKeyword(SelectKeywords.ShiJi),

@@ -48,7 +48,6 @@ public class ZhuLeiShuiXianCard : SelectSpecialBaseCard, ISongMuCard, IDengChang
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.DengChang,
         SelectTags.SpecialEffect,
-        SelectTags.ExtraMonster,
     ];
 
     // 「登场」「特殊效果」不进关键字列表（卡面用纯文本写"登场：…""特殊效果：…"，关键字只在悬停里给说明）

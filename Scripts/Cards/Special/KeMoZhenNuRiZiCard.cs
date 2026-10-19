@@ -40,7 +40,6 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
     ];
 
     protected override HashSet<CardTag> CanonicalTags => [
-        SelectTags.ExtraMonster,
         SelectTags.GuangEMo,
         SelectTags.KeMoGuaiShou,
         SelectTags.KeMo,
@@ -51,7 +50,6 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
     public override IEnumerable<CardKeyword> CanonicalKeywords => [];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
@@ -135,7 +133,7 @@ public class KeMoZhenNuRiZiCard : SelectSpecialBaseCard, IKeMoFusionMonster, ISp
         if (picked == null) return;
 
         // 额外怪兽 → 额外堆；其他的卡 → 抽牌堆
-        if (picked.Tags.Contains(SelectTags.ExtraMonster))
+        if (CardClassification.IsExtraMonster(picked))
             await ExtraDeckSeries.ReturnExtraMonster(Owner, picked);    // 额外怪兽：持久卡还给额外堆，副本退场
         else
             await SelectToolCmd.ReturnCardToPile(picked, PileType.Draw);

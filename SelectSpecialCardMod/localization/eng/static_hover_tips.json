@@ -1,0 +1,11 @@
+{
+  "SELECT_SPECIAL_CARD_MOD_MYTH_UNBOUND_LEGACY.description": "This unbound legacy card is unplayable. Use Mythic Mashup to create a Myth Card.",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.title": "Banish Pile",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.description": "Banished cards stay out of combat unless an effect retrieves them.",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_CHU_WAI_PILE.empty": "Your Banish Pile is empty.",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.title": "Extra Pile",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.description": "Cannot draw these cards or move them to Draw/Discard/Exhaust Piles. Retrieve through specific effects.",
+  "SELECT_SPECIAL_CARD_MOD_CARDPILE_E_WAI_PILE.empty": "Your Extra Pile is empty.",
+  "SELECT_SPECIAL_CARD_MOD_HAND_CENTER.title": "Center",
+  "SELECT_SPECIAL_CARD_MOD_HAND_CENTER.description": "Uses [gold]Hand[/gold] position just before play. Odd Hand size: Middle card. Even: Both middle cards."
+}

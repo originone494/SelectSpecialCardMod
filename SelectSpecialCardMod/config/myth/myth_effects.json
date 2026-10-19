@@ -1,0 +1,3775 @@
+{
+  "schema_version": 1,
+  "purpose": "One effect per concrete project Special card, independently executable adaptations",
+  "allow_all_three_card_types": true,
+  "energy_cost_range": [
+    0,
+    3
+  ],
+  "generated_card_exhausts_by_default": false,
+  "modules": [
+    {
+      "id": "fx.ao_li_ha_gang_de_jie_jie",
+      "name_part": "奥利哈刚",
+      "source": {
+        "class": "AoLiHaGangDeJieJieCard",
+        "name": "奥利哈刚的结界",
+        "relative_path": "project_review/Scripts/Cards/Special/AoLiHaGangDeJieJieCard.cs"
+      },
+      "target": "self",
+      "text": "获得{strength}点力量。",
+      "parameters": {
+        "strength": {
+          "min": 2,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_strength",
+          "args": [
+            "$strength"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把原卡失去所有增益拆入独立条件；同源配对即奥利哈刚的奥利哈刚"
+    },
+    {
+      "id": "fx.ao_li_ha_gang_di_er_jie_jie",
+      "name_part": "第二结界",
+      "source": {
+        "class": "AoLiHaGangDiErJieJieCard",
+        "name": "奥利哈刚第二结界",
+        "relative_path": "project_review/Scripts/Cards/Special/AoLiHaGangDiErJieJieCard.cs"
+      },
+      "target": "self",
+      "text": "每回合结束时，使{count}张手牌获得保留。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_end_turn_retain",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留持续能力，去掉必须持有第一结界的关联"
+    },
+    {
+      "id": "fx.ao_li_ha_gang_di_san_jie_jie",
+      "name_part": "第三结界",
+      "source": {
+        "class": "AoLiHaGangDiSanJieJieCard",
+        "name": "奥利哈刚第三结界",
+        "relative_path": "project_review/Scripts/Cards/Special/AoLiHaGangDiSanJieJieCard.cs"
+      },
+      "target": "self",
+      "text": "本场战斗手牌数量没有上限。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_power_unlimited_hand",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "独立使用原结界的核心被动，不依赖其他结界"
+    },
+    {
+      "id": "fx.ao_li_ha_gang_tian_shen_dang",
+      "name_part": "天神荡",
+      "source": {
+        "class": "AoLiHaGangTianShenDangCard",
+        "name": "奥利哈刚天神荡",
+        "relative_path": "project_review/Scripts/Cards/Special/AoLiHaGangTianShenDangCard.cs"
+      },
+      "target": "all_enemies",
+      "text": "对所有敌人造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 28,
+          "max": 55,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack_all",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把战斗开始自动触发改为当前打出即时群伤"
+    },
+    {
+      "id": "fx.ao_xi_li_si_de_tian_kong_long",
+      "name_part": "天空龙",
+      "source": {
+        "class": "AoXiLiSiDeTianKongLongCard",
+        "name": "奥西里斯的天空龙",
+        "relative_path": "project_review/Scripts/Cards/Special/AoXiLiSiDeTianKongLongCard.cs"
+      },
+      "target": "all_enemies",
+      "text": "手牌每有1张牌，对所有敌人造成{damage}点伤害。随后消灭生命不高于{execute}的敌人。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 13,
+          "step": 1
+        },
+        "execute": {
+          "min": 12,
+          "max": 30,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_attack_all_per_hand",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "execute_enemies_hp_at_most",
+          "args": [
+            "$execute"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留按手牌数量结算和低血量处决，不需要专属神卡"
+    },
+    {
+      "id": "fx.bei_man_de_can_huan_zhuang",
+      "name_part": "杯满",
+      "source": {
+        "class": "BeiManDeCanHuanZhuangCard",
+        "name": "杯满的灿幻庄",
+        "relative_path": "project_review/Scripts/Cards/Special/BeiManDeCanHuanZhuangCard.cs"
+      },
+      "target": "self",
+      "text": "本回合打出的非攻击牌不消耗能量，直到你打出攻击牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_power_free_until_attack",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留驻场核心效果并改成当前回合可获得的状态，不再要求天杯龙"
+    },
+    {
+      "id": "fx.can_huan_chao_long_san_ji_tian_long",
+      "name_part": "三极天龙",
+      "source": {
+        "class": "CanHuanChaoLongSanJiTianLongCard",
+        "name": "灿幻超龙·三极天龙",
+        "relative_path": "project_review/Scripts/Cards/Special/CanHuanChaoLongSanJiTianLongCard.cs"
+      },
+      "target": "all_enemies",
+      "text": "对所有敌人造成{damage}点伤害。然后打出最多{count}张其他手牌中的攻击牌。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 24,
+          "step": 1
+        },
+        "count": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack_all",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_auto_play_hand_attacks",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "提取攻击与登场连打，取消同调素材和系列条件"
+    },
+    {
+      "id": "fx.can_huan_kai_men",
+      "name_part": "开门",
+      "source": {
+        "class": "CanHuanKaiMenCard",
+        "name": "灿幻·开门",
+        "relative_path": "project_review/Scripts/Cards/Special/CanHuanKaiMenCard.cs"
+      },
+      "target": "self",
+      "text": "生成{count}张随机攻击牌加入手牌，本回合费用为0。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Attack",
+            "$count",
+            "FreeThisTurn"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把检索天杯龙换成不限定来源的攻击牌生成"
+    },
+    {
+      "id": "fx.can_huan_sheng_long_shuang_cha_tian_long",
+      "name_part": "双叉天龙",
+      "source": {
+        "class": "CanHuanShengLongShuangChaTianLongCard",
+        "name": "灿幻升龙·双叉天龙",
+        "relative_path": "project_review/Scripts/Cards/Special/CanHuanShengLongShuangChaTianLongCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，从消耗堆将{count}张牌加入手牌。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 25,
+          "step": 1
+        },
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "retrieve_exhaust",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把登场回收天杯龙替换为通用消耗堆回收"
+    },
+    {
+      "id": "fx.chang_shi_duan_li",
+      "name_part": "常世断离",
+      "source": {
+        "class": "ChangShiDuanLiCard",
+        "name": "常世断离",
+        "relative_path": "project_review/Scripts/Cards/Special/ChangShiDuanLiCard.cs"
+      },
+      "target": "choose_card",
+      "text": "从消耗堆最多选择{count}张牌除外，再从除外堆最多选择{count}张牌消耗。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_exchange_exhaust_banish",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留卡堆交换机制，两个选择均可少选"
+    },
+    {
+      "id": "fx.chang_shi_ming_zi",
+      "name_part": "常世明子",
+      "source": {
+        "class": "ChangShiMingZiCard",
+        "name": "常世明子",
+        "relative_path": "project_review/Scripts/Cards/Special/ChangShiMingZiCard.cs"
+      },
+      "target": "self",
+      "text": "将本回合已打出的卡加入手牌，这些卡的费用随机变为0～3。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_recall_played_cards_random_cost",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡核心随机费用回收；战斗中随机用战局随机流"
+    },
+    {
+      "id": "fx.ci_shi_bi_ke_zhi_ren",
+      "name_part": "此时彼刻",
+      "source": {
+        "class": "CiShiBiKeZhiRenCard",
+        "name": "此时彼刻之人",
+        "relative_path": "project_review/Scripts/Cards/Special/CiShiBiKeZhiRenCard.cs"
+      },
+      "target": "choose_card",
+      "text": "选择1张其他手牌，回合结束时自动打出。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_delayed_play_chosen_hand",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留延迟出牌的独立价值，去掉离手回手循环"
+    },
+    {
+      "id": "fx.dai_man_zhi_hu",
+      "name_part": "怠慢之壶",
+      "source": {
+        "class": "DaiManZhiHuCard",
+        "name": "怠慢之壶",
+        "relative_path": "project_review/Scripts/Cards/Special/DaiManZhiHuCard.cs"
+      },
+      "target": "self",
+      "text": "每有1名敌人，抽{draw}张牌。",
+      "parameters": {
+        "draw": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_draw_per_enemy",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "抽牌量按敌人数计算，不再战斗开始自动入手"
+    },
+    {
+      "id": "fx.dai_zui_a_dai",
+      "name_part": "代罪阿呆",
+      "source": {
+        "class": "DaiZuiADaiCard",
+        "name": "代罪阿呆",
+        "relative_path": "project_review/Scripts/Cards/Special/DaiZuiADaiCard.cs"
+      },
+      "target": "enemy",
+      "text": "复制目标敌人，复制体无意图，受到的伤害转移给本体。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_clone_enemy_mirror_damage",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡标志性机制，无需其他特殊卡"
+    },
+    {
+      "id": "fx.dang_nian_jia_she_shan_hai_tu",
+      "name_part": "山海图",
+      "source": {
+        "class": "DangNianJiaSheShanHaiTuCard",
+        "name": "当年假设山海图",
+        "relative_path": "project_review/Scripts/Cards/Special/DangNianJiaSheShanHaiTuCard.cs"
+      },
+      "target": "choose_card",
+      "text": "选择1张手牌，将其变化成此局见过的随机卡牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_transform_seen_card",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留随机变化；选择的目标不决定生成效果模块"
+    },
+    {
+      "id": "fx.fu_su_de_tian_kong_shen",
+      "name_part": "复苏",
+      "source": {
+        "class": "FuSuDeTianKongShenCard",
+        "name": "复苏的天空神",
+        "relative_path": "project_review/Scripts/Cards/Special/FuSuDeTianKongShenCard.cs"
+      },
+      "target": "self",
+      "text": "从弃牌堆或消耗堆取回1张牌，然后将手牌抽至{hand}张。",
+      "parameters": {
+        "hand": {
+          "min": 4,
+          "max": 7,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "retrieve_discard_or_exhaust",
+          "args": [
+            "1"
+          ]
+        },
+        {
+          "op": "custom_draw_until_hand_size",
+          "args": [
+            "$hand"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将指定天空龙改成任意可用卡，不再依赖专属神卡"
+    },
+    {
+      "id": "fx.he_lu_si_jia_hu",
+      "name_part": "加护",
+      "source": {
+        "class": "HeLuSiJiaHuCard",
+        "name": "荷鲁斯·加护",
+        "relative_path": "project_review/Scripts/Cards/Special/HeLuSiJiaHuCard.cs"
+      },
+      "target": "self",
+      "text": "按当前其他手牌数的{factor}倍抽牌。",
+      "parameters": {
+        "factor": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_draw_hand_count_multiplier",
+          "args": [
+            "$factor"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "不再依赖王之棺免单规则"
+    },
+    {
+      "id": "fx.he_lu_si_rong_guang",
+      "name_part": "荣光",
+      "source": {
+        "class": "HeLuSiRongGuangCard",
+        "name": "荷鲁斯·荣光",
+        "relative_path": "project_review/Scripts/Cards/Special/HeLuSiRongGuangCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 20,
+          "max": 42,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "取原卡单次高伤主效果，不需要王之棺"
+    },
+    {
+      "id": "fx.he_lu_si_xian_dao_ha_bi",
+      "name_part": "哈比",
+      "source": {
+        "class": "HeLuSiXianDaoHaBiCard",
+        "name": "荷鲁斯·先导哈比",
+        "relative_path": "project_review/Scripts/Cards/Special/HeLuSiXianDaoHaBiCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡，从弃牌堆或消耗堆取回{count}张牌。",
+      "parameters": {
+        "block": {
+          "min": 8,
+          "max": 22,
+          "step": 1
+        },
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "retrieve_discard_or_exhaust",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "来自原卡格挡和双牌堆回收，去除棺条件"
+    },
+    {
+      "id": "fx.he_lu_si_zhu_fu",
+      "name_part": "祝福",
+      "source": {
+        "class": "HeLuSiZhuFuCard",
+        "name": "荷鲁斯·祝福",
+        "relative_path": "project_review/Scripts/Cards/Special/HeLuSiZhuFuCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，其他手牌每有1张，额外造成{bonus}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 6,
+          "max": 16,
+          "step": 1
+        },
+        "bonus": {
+          "min": 2,
+          "max": 7,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_attack_scaled_other_hand",
+          "args": [
+            "$damage",
+            "$bonus"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "原本只计算荷鲁斯怪兽，现在改为所有其他手牌"
+    },
+    {
+      "id": "fx.hong_lei_zhi_mo_luo_lei",
+      "name_part": "红泪",
+      "source": {
+        "class": "HongLeiZhiMoLuoLeiCard",
+        "name": "红泪之魔 落泪",
+        "relative_path": "project_review/Scripts/Cards/Special/HongLeiZhiMoLuoLeiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机技能牌并消耗它。",
+      "parameters": {
+        "damage": {
+          "min": 14,
+          "max": 29,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_exhaust",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "检索消耗刻魔改为任何随机技能，保留送入消耗堆的操作"
+    },
+    {
+      "id": "fx.hun_zhi_jie_fang",
+      "name_part": "魂之解放",
+      "source": {
+        "class": "HunZhiJieFangCard",
+        "name": "魂之解放",
+        "relative_path": "project_review/Scripts/Cards/Special/HunZhiJieFangCard.cs"
+      },
+      "target": "choose_card",
+      "text": "消耗弃牌堆最多{count}张牌。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 7,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "exhaust_from_discard_up_to",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留消耗弃牌堆的工具效果"
+    },
+    {
+      "id": "fx.ji_qiao_she",
+      "name_part": "机巧蛇",
+      "source": {
+        "class": "JiQiaoSheCard",
+        "name": "机巧蛇",
+        "relative_path": "project_review/Scripts/Cards/Special/JiQiaoSheCard.cs"
+      },
+      "target": "enemy",
+      "text": "向除外堆加入{banish}张随机卡，对目标造成{damage}点伤害。",
+      "parameters": {
+        "banish": {
+          "min": 5,
+          "max": 10,
+          "step": 1
+        },
+        "damage": {
+          "min": 16,
+          "max": 32,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        },
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡既有除外累积又有直接伤害，保留成一个来源效果"
+    },
+    {
+      "id": "fx.jia_shi_zhen_jie_yu_qu_shen",
+      "name_part": "预取身",
+      "source": {
+        "class": "JiaShiZhenJieYuQuShenCard",
+        "name": "假世真界预取身",
+        "relative_path": "project_review/Scripts/Cards/Special/JiaShiZhenJieYuQuShenCard.cs"
+      },
+      "target": "enemy",
+      "text": "消灭生命值不高于{percent}%的目标。",
+      "parameters": {
+        "percent": {
+          "min": 20,
+          "max": 40,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_execute_target_hp_percent",
+          "args": [
+            "$percent"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "把复杂的手牌总伤门槛拆去，效果内保留低血量处决要求"
+    },
+    {
+      "id": "fx.jin_ji_de_sheng_guan",
+      "name_part": "圣冠",
+      "source": {
+        "class": "JinJiDeShengGuanCard",
+        "name": "禁忌的圣冠",
+        "relative_path": "project_review/Scripts/Cards/Special/JinJiDeShengGuanCard.cs"
+      },
+      "target": "any_creature",
+      "text": "直到本回合结束，目标造成和受到的伤害均为0。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_apply_damage_nullification",
+          "args": [
+            "Target",
+            "EndOfTurn"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡的双向伤害禁止，目标可为玩家或敌人"
+    },
+    {
+      "id": "fx.jin_man_bing_qian_xu_zhi_hu",
+      "name_part": "金满之壶",
+      "source": {
+        "class": "JinManBingQianXuZhiHuCard",
+        "name": "金满并谦虚之壶",
+        "relative_path": "project_review/Scripts/Cards/Special/JinManBingQianXuZhiHuCard.cs"
+      },
+      "target": "choose_card",
+      "text": "查看抽牌堆顶{reveal}张牌，选择1张加入手牌。",
+      "parameters": {
+        "reveal": {
+          "min": 4,
+          "max": 8,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "choose_draw_top_to_hand",
+          "args": [
+            "$reveal",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从金满并谦虚抽取主要滤牌效果；除外额外怪兽环节不依赖专属资源"
+    },
+    {
+      "id": "fx.jue_dui_mo_fa_sheng_jie_jie",
+      "name_part": "圣结界",
+      "source": {
+        "class": "JueDuiMoFaShengJieJieCard",
+        "name": "绝对魔法圣结界",
+        "relative_path": "project_review/Scripts/Cards/Special/JueDuiMoFaShengJieJieCard.cs"
+      },
+      "target": "self",
+      "text": "每回合开始时，获得{artifact}层人工制品。",
+      "parameters": {
+        "artifact": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_turn_start_artifact",
+          "args": [
+            "$artifact"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "从庞大的系列分支中提炼稳定人工制品，不再判断巫女或能力种类"
+    },
+    {
+      "id": "fx.kai_sai_dou_ji_chang",
+      "name_part": "斗技场",
+      "source": {
+        "class": "KaiSaiDouJiChangCard",
+        "name": "凯撒斗技场",
+        "relative_path": "project_review/Scripts/Cards/Special/KaiSaiDouJiChangCard.cs"
+      },
+      "target": "self",
+      "text": "当场上至少有2名敌人时，所有敌人造成的伤害为0。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_power_multienemy_disable_damage",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡多敌压制的原有条件和效果"
+    },
+    {
+      "id": "fx.ke_mo_da_sheng_guan",
+      "name_part": "大圣棺",
+      "source": {
+        "class": "KeMoDaShengGuanCard",
+        "name": "刻魔·大圣棺",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoDaShengGuanCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，从消耗堆将1张牌洗回抽牌堆。",
+      "parameters": {
+        "damage": {
+          "min": 8,
+          "max": 20,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "return_exhaust_to_draw",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "融合材料回收改为通用卡堆操作，不要求刻魔额外怪兽"
+    },
+    {
+      "id": "fx.ke_mo_he_he_jun_wang",
+      "name_part": "君王",
+      "source": {
+        "class": "KeMoHeHeJunWangCard",
+        "name": "刻魔·赫赫君王",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoHeHeJunWangCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，然后抽{draw}张牌。",
+      "parameters": {
+        "damage": {
+          "min": 21,
+          "max": 43,
+          "step": 1
+        },
+        "draw": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "以原卡高伤为主体，用通用抽牌替换依赖刻魔检索的登场奖励"
+    },
+    {
+      "id": "fx.ke_mo_lian_ge",
+      "name_part": "怜歌",
+      "source": {
+        "class": "KeMoLianGeCard",
+        "name": "刻魔·怜歌",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoLianGeCard.cs"
+      },
+      "target": "self",
+      "text": "本回合你受到的伤害减半。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_gain_half_damage_taken_this_turn",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留直接防御效果；从消耗堆除外素材的条件独立"
+    },
+    {
+      "id": "fx.ke_mo_luo_lei_ri_zi",
+      "name_part": "落泪之日",
+      "source": {
+        "class": "KeMoLuoLeiRiZiCard",
+        "name": "刻魔·落泪之日",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoLuoLeiRiZiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，所有敌人本回合失去{strength_loss}点力量。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 26,
+          "step": 1
+        },
+        "strength_loss": {
+          "min": 3,
+          "max": 8,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "apply_temporary_strength_loss_all",
+          "args": [
+            "$strength_loss"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将原驻场压力量改成即时群体减力量，特殊卡素材不需要"
+    },
+    {
+      "id": "fx.ke_mo_mo_jian_ke",
+      "name_part": "魔镌客",
+      "source": {
+        "class": "KeMoMoJianKeCard",
+        "name": "刻魔·魔镌客",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoMoJianKeCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机技能牌加入手牌。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 25,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将刻魔魔法陷阱检索改为普通技能生成"
+    },
+    {
+      "id": "fx.ke_mo_shen_sheng_guan",
+      "name_part": "神圣棺",
+      "source": {
+        "class": "KeMoShenShengGuanCard",
+        "name": "刻魔·神圣棺",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoShenShengGuanCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。目标有格挡时，伤害翻倍。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 27,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_attack_double_vs_block",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "基础打出伤害与装备后的破格挡倍率合成完整来源效果，取消装备条件"
+    },
+    {
+      "id": "fx.ke_mo_yan_sheng_wu",
+      "name_part": "衍生物",
+      "source": {
+        "class": "KeMoYanShengWuCard",
+        "name": "刻魔衍生物",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoYanShengWuCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 4,
+          "max": 12,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡是普通伤害衍生物，保留唯一直接效果"
+    },
+    {
+      "id": "fx.ke_mo_yong_sheng",
+      "name_part": "咏圣",
+      "source": {
+        "class": "KeMoYongShengCard",
+        "name": "刻魔·咏圣",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoYongShengCard.cs"
+      },
+      "target": "self",
+      "text": "生成1张随机攻击牌加入手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Attack",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡检索光恶魔后丢一张牌已拆为支付条件，检索改成通用攻击牌"
+    },
+    {
+      "id": "fx.ke_mo_zan_sheng",
+      "name_part": "赞圣",
+      "source": {
+        "class": "KeMoZanShengCard",
+        "name": "刻魔·赞圣",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoZanShengCard.cs"
+      },
+      "target": "self",
+      "text": "生成{count}张随机攻击牌加入手牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Attack",
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将刻魔衍生物换成普通随机攻击牌；无攻击卡条件已进条件库"
+    },
+    {
+      "id": "fx.ke_mo_zhen_hun_guan",
+      "name_part": "镇魂棺",
+      "source": {
+        "class": "KeMoZhenHunGuanCard",
+        "name": "刻魔·镇魂棺",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoZhenHunGuanCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机攻击牌加入手牌，本回合费用为0。",
+      "parameters": {
+        "damage": {
+          "min": 4,
+          "max": 13,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Attack",
+            "1",
+            "FreeThisTurn"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "特殊效果检索刻魔并使其免费改为随机攻击牌"
+    },
+    {
+      "id": "fx.ke_mo_zhen_nu_ri_zi",
+      "name_part": "震怒",
+      "source": {
+        "class": "KeMoZhenNuRiZiCard",
+        "name": "刻魔·震怒之日",
+        "relative_path": "project_review/Scripts/Cards/Special/KeMoZhenNuRiZiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，随机眩晕{count}名敌人。",
+      "parameters": {
+        "damage": {
+          "min": 15,
+          "max": 29,
+          "step": 1
+        },
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_stun_random_enemies",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将装备数量决定眩晕次数改成固定随机值"
+    },
+    {
+      "id": "fx.kuang_zhan_shi_zhi_hun",
+      "name_part": "狂战士",
+      "source": {
+        "class": "KuangZhanShiZhiHunCard",
+        "name": "狂战士之魂",
+        "relative_path": "project_review/Scripts/Cards/Special/KuangZhanShiZhiHunCard.cs"
+      },
+      "target": "self",
+      "text": "持续抽1张牌，抽到攻击牌就立即打出，直到抽到非攻击牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_berserker_draw_until_non_attack",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "原卡失去生命和丢弃全手移到条件库，不再附着在效果中"
+    },
+    {
+      "id": "fx.lian_li_pao_gu_ding_shi",
+      "name_part": "连栗炮",
+      "source": {
+        "class": "LianLiPaoGuDingShiCard",
+        "name": "连栗炮固定式",
+        "relative_path": "project_review/Scripts/Cards/Special/LianLiPaoGuDingShiCard.cs"
+      },
+      "target": "all_enemies",
+      "text": "消耗抽牌堆顶的{count}张牌，对所有敌人造成这些牌总费用×{factor}点伤害。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 4,
+          "step": 1
+        },
+        "factor": {
+          "min": 3,
+          "max": 8,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_exhaust_top_and_damage_by_cost",
+          "args": [
+            "$count",
+            "$factor"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "用可独立结算的费用累计替代原卡双重方程"
+    },
+    {
+      "id": "fx.lin_jia_ge_cao",
+      "name_part": "割草",
+      "source": {
+        "class": "LinJiaGeCaoCard",
+        "name": "邻家割草",
+        "relative_path": "project_review/Scripts/Cards/Special/LinJiaGeCaoCard.cs"
+      },
+      "target": "self",
+      "text": "将抽牌堆全部卡牌送入弃牌堆。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "mill_entire_draw_pile",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡效果可独立使用，不添加珠泪联动"
+    },
+    {
+      "id": "fx.ling_hun_zhao_ji",
+      "name_part": "灵魂召集",
+      "source": {
+        "class": "LingHunZhaoJiCard",
+        "name": "灵魂召集",
+        "relative_path": "project_review/Scripts/Cards/Special/LingHunZhaoJiCard.cs"
+      },
+      "target": "self",
+      "text": "每打出1张攻击牌，将抽牌堆顶{mill}张牌送入弃牌堆。",
+      "parameters": {
+        "mill": {
+          "min": 1,
+          "max": 4,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_attack_mills_draw_pile",
+          "args": [
+            "$mill"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡持续触发，但不额外触发任何专属系列效果"
+    },
+    {
+      "id": "fx.ming_yun_huai_bao_de_bao_dan",
+      "name_part": "爆弹",
+      "source": {
+        "class": "MingYunHuaiBaoDeBaoDanCard",
+        "name": "命运怀抱的爆弹",
+        "relative_path": "project_review/Scripts/Cards/Special/MingYunHuaiBaoDeBaoDanCard.cs"
+      },
+      "target": "enemy",
+      "text": "获得{block}点格挡，对目标造成等量伤害。",
+      "parameters": {
+        "block": {
+          "min": 8,
+          "max": 18,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "attack",
+          "args": [
+            "$block"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将原本敌方攻击时的反击转为主动格挡反击，不要求冥界逆转"
+    },
+    {
+      "id": "fx.mo_hong_shen_lu_li",
+      "name_part": "鲁力",
+      "source": {
+        "class": "MoHongShenLuLiCard",
+        "name": "魔轰神鲁力",
+        "relative_path": "project_review/Scripts/Cards/Special/MoHongShenLuLiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，本回合首次打出后将自身返回手牌。",
+      "parameters": {
+        "damage": {
+          "min": 6,
+          "max": 18,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_return_self_to_hand_once_per_turn",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "从送墓回手提炼回手能力，加每回合一次防止0费无限循环"
+    },
+    {
+      "id": "fx.niao_niao_lian_ge_ji_de_yi_shi_huai",
+      "name_part": "壹世坏",
+      "source": {
+        "class": "NiaoNiaoLianGeJiDeYiShiHuaiCard",
+        "name": "袅袅涟歌姬的壹世坏",
+        "relative_path": "project_review/Scripts/Cards/Special/NiaoNiaoLianGeJiDeYiShiHuaiCard.cs"
+      },
+      "target": "self",
+      "text": "每当1张牌进入弃牌堆，将抽牌堆顶{mill}张牌送入弃牌堆。",
+      "parameters": {
+        "mill": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_on_discard_mill",
+          "args": [
+            "$mill"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将原来只看奇巧/送墓的触发改成通用弃牌堆事件"
+    },
+    {
+      "id": "fx.no41_ni_shui_mo_shou",
+      "name_part": "泥睡魔兽",
+      "source": {
+        "class": "No41NiShuiMoShouCard",
+        "name": "No.41-泥睡魔兽",
+        "relative_path": "project_review/Scripts/Cards/Special/No41NiShuiMoShouCard.cs"
+      },
+      "target": "self",
+      "text": "每回合结束时，获得{block}点格挡。",
+      "parameters": {
+        "block": {
+          "min": 5,
+          "max": 14,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_end_turn_block",
+          "args": [
+            "$block"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "提取原卡驻场的回合结束格挡，不继承禁用攻击的其他系列机制"
+    },
+    {
+      "id": "fx.qi_xing_dao_fa_shi",
+      "name_part": "七星道法师",
+      "source": {
+        "class": "QiXingDaoFaShiCard",
+        "name": "七星道法师",
+        "relative_path": "project_review/Scripts/Cards/Special/QiXingDaoFaShiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，本回合目标失去等同于弃牌堆不同卡名数×{strength_loss}的力量。",
+      "parameters": {
+        "damage": {
+          "min": 6,
+          "max": 18,
+          "step": 1
+        },
+        "strength_loss": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_temporary_strength_loss_by_distinct_discard",
+          "args": [
+            "$strength_loss"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "去除手牌高费附加分支，保留弃牌堆规模参与计算"
+    },
+    {
+      "id": "fx.qi_xing_dao_mo_nv",
+      "name_part": "魔女",
+      "source": {
+        "class": "QiXingDaoMoNvCard",
+        "name": "七星道魔女",
+        "relative_path": "project_review/Scripts/Cards/Special/QiXingDaoMoNvCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，然后可以免费打出1张其他高费手牌。",
+      "parameters": {
+        "damage": {
+          "min": 8,
+          "max": 20,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_optional_play_costly_hand",
+          "args": [
+            "2"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "原来的丢弃1手牌已拆为条件候选，打牌效果保持独立"
+    },
+    {
+      "id": "fx.qi_xing_dao_mo_shu_shi",
+      "name_part": "魔术师",
+      "source": {
+        "class": "QiXingDaoMoShuShiCard",
+        "name": "七星道魔术师",
+        "relative_path": "project_review/Scripts/Cards/Special/QiXingDaoMoShuShiCard.cs"
+      },
+      "target": "enemy",
+      "text": "将抽牌堆顶1张牌送入弃牌堆；造成{damage}点伤害，弃牌堆每有1种卡名，额外造成{bonus}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 14,
+          "step": 1
+        },
+        "bonus": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "mill_top",
+          "args": [
+            "1"
+          ]
+        },
+        {
+          "op": "custom_attack_by_distinct_discard",
+          "args": [
+            "$damage",
+            "$bonus"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原来按不同卡名计伤的核心"
+    },
+    {
+      "id": "fx.qiang_duo",
+      "name_part": "强夺",
+      "source": {
+        "class": "QiangDuoCard",
+        "name": "强夺",
+        "relative_path": "project_review/Scripts/Cards/Special/QiangDuoCard.cs"
+      },
+      "target": "enemy",
+      "text": "从目标敌人的意图牌中选择{count}张加入手牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_steal_enemy_intent_cards",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留项目原有敌人意图卡抢夺玩法"
+    },
+    {
+      "id": "fx.qiang_yu_bing_jin_man_zhi_hu",
+      "name_part": "金满",
+      "source": {
+        "class": "QiangYuBingJinManZhiHuCard",
+        "name": "强欲并金满之壶",
+        "relative_path": "project_review/Scripts/Cards/Special/QiangYuBingJinManZhiHuCard.cs"
+      },
+      "target": "self",
+      "text": "向除外堆加入{banish}张随机卡，抽{draw}张牌。",
+      "parameters": {
+        "banish": {
+          "min": 4,
+          "max": 9,
+          "step": 1
+        },
+        "draw": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        },
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将额外怪兽限定改成任意随机生成卡"
+    },
+    {
+      "id": "fx.qiang_yu_bing_qian_xu_zhi_hu",
+      "name_part": "谦虚",
+      "source": {
+        "class": "QiangYuBingQianXuZhiHuCard",
+        "name": "强欲并谦虚之壶",
+        "relative_path": "project_review/Scripts/Cards/Special/QiangYuBingQianXuZhiHuCard.cs"
+      },
+      "target": "choose_card",
+      "text": "查看抽牌堆顶{reveal}张卡，选择1张加入手牌，其余放回牌顶。",
+      "parameters": {
+        "reveal": {
+          "min": 3,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "choose_draw_top_to_hand",
+          "args": [
+            "$reveal",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "完整保留翻牌选择核心，没有自肃限制"
+    },
+    {
+      "id": "fx.qiang_yu_er_tan_yu_zhi_hu",
+      "name_part": "贪欲",
+      "source": {
+        "class": "QiangYuErTanYuZhiHuCard",
+        "name": "强欲而贪欲之壶",
+        "relative_path": "project_review/Scripts/Cards/Special/QiangYuErTanYuZhiHuCard.cs"
+      },
+      "target": "self",
+      "text": "向除外堆加入{banish}张随机卡，抽{draw}张牌。",
+      "parameters": {
+        "banish": {
+          "min": 7,
+          "max": 13,
+          "step": 1
+        },
+        "draw": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        },
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "除外池是通用资源，不依赖异解卡"
+    },
+    {
+      "id": "fx.shen_zhi_mi_gao",
+      "name_part": "密告",
+      "source": {
+        "class": "ShenZhiMiGaoCard",
+        "name": "神之密告",
+        "relative_path": "project_review/Scripts/Cards/Special/ShenZhiMiGaoCard.cs"
+      },
+      "target": "choose_card",
+      "text": "选择1张其他手牌，将它及手牌、抽牌堆、弃牌堆的同名卡全部消耗。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_exhaust_all_copies_of_chosen",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "原卡纯卡组精简操作原样泛化"
+    },
+    {
+      "id": "fx.sheng_jie_jie_de_wu_nv",
+      "name_part": "巫女",
+      "source": {
+        "class": "ShengJieJieDeWuNvCard",
+        "name": "圣结界的巫女",
+        "relative_path": "project_review/Scripts/Cards/Special/ShengJieJieDeWuNvCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 26,
+          "max": 54,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留源卡40点伤害，不依赖特殊能力翻倍"
+    },
+    {
+      "id": "fx.si_ling_de_you_huo",
+      "name_part": "死灵",
+      "source": {
+        "class": "SiLingDeYouHuoCard",
+        "name": "死灵的诱惑",
+        "relative_path": "project_review/Scripts/Cards/Special/SiLingDeYouHuoCard.cs"
+      },
+      "target": "self",
+      "text": "每有1张牌进入弃牌堆，对随机敌人造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 2,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_on_discard_pile_enter_damage",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡无限系列中立的持续伤害机制"
+    },
+    {
+      "id": "fx.si_zhe_su_sheng",
+      "name_part": "苏生",
+      "source": {
+        "class": "SiZheSuShengCard",
+        "name": "死者苏生",
+        "relative_path": "project_review/Scripts/Cards/Special/SiZheSuShengCard.cs"
+      },
+      "target": "choose_card",
+      "text": "从消耗堆取回{count}张攻击牌，这些牌本回合费用为0。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "retrieve_exhaust_type_free",
+          "args": [
+            "Attack",
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原版死者苏生主动效果，只需通用攻击牌"
+    },
+    {
+      "id": "fx.ti_zui_yang",
+      "name_part": "替罪羊",
+      "source": {
+        "class": "TiZuiYangCard",
+        "name": "替罪羊",
+        "relative_path": "project_review/Scripts/Cards/Special/TiZuiYangCard.cs"
+      },
+      "target": "self",
+      "text": "将{count}张抽到后自动提供格挡的羊衍生物加入抽牌堆。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_create_sheep_tokens_to_draw",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "原卡生成的衍生物可在普通构筑中独立发挥作用"
+    },
+    {
+      "id": "fx.tian_bei_long_bai_ban",
+      "name_part": "白板",
+      "source": {
+        "class": "TianBeiLongBaiBanCard",
+        "name": "天杯龙·白板",
+        "relative_path": "project_review/Scripts/Cards/Special/TianBeiLongBaiBanCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机技能牌加入手牌。",
+      "parameters": {
+        "damage": {
+          "min": 6,
+          "max": 14,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将登场检索灿幻魔法改为通用技能卡生成"
+    },
+    {
+      "id": "fx.tian_bei_long_hong_zhong",
+      "name_part": "红中",
+      "source": {
+        "class": "TianBeiLongHongZhongCard",
+        "name": "天杯龙·红中",
+        "relative_path": "project_review/Scripts/Cards/Special/TianBeiLongHongZhongCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机攻击牌加入手牌。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 13,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Attack",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将检索其他天杯龙改成随机攻击牌"
+    },
+    {
+      "id": "fx.tian_bei_long_huan_lu",
+      "name_part": "幻禄",
+      "source": {
+        "class": "TianBeiLongHuanLuCard",
+        "name": "天杯龙·幻禄",
+        "relative_path": "project_review/Scripts/Cards/Special/TianBeiLongHuanLuCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，本回合下一张攻击牌费用变为0。",
+      "parameters": {
+        "damage": {
+          "min": 4,
+          "max": 12,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_next_attack_free",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "把源卡免费获得天杯龙改为下次攻击免费，不依赖同调"
+    },
+    {
+      "id": "fx.tian_bei_long_lv_fa",
+      "name_part": "绿发",
+      "source": {
+        "class": "TianBeiLongLvFaCard",
+        "name": "天杯龙·绿发",
+        "relative_path": "project_review/Scripts/Cards/Special/TianBeiLongLvFaCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，从消耗堆取回1张牌。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 14,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "retrieve_exhaust",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把登场回收天杯龙改为通用消耗堆回收"
+    },
+    {
+      "id": "fx.tian_ci_bao_pai",
+      "name_part": "天赐",
+      "source": {
+        "class": "TianCiBaoPaiCard",
+        "name": "天赐宝牌",
+        "relative_path": "project_review/Scripts/Cards/Special/TianCiBaoPaiCard.cs"
+      },
+      "target": "self",
+      "text": "将手牌抽至手牌上限。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "draw_to_hand_limit",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "忠于原卡的抽满手牌"
+    },
+    {
+      "id": "fx.tian_shi_de_shi_she",
+      "name_part": "施舍",
+      "source": {
+        "class": "TianShiDeShiSheCard",
+        "name": "天使的施舍",
+        "relative_path": "project_review/Scripts/Cards/Special/TianShiDeShiSheCard.cs"
+      },
+      "target": "self",
+      "text": "抽{draw}张牌。",
+      "parameters": {
+        "draw": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "抽3弃2拆开：弃手牌进入条件库，抽牌是独立效果"
+    },
+    {
+      "id": "fx.tian_xia_du_bu_de_da_yi_zei",
+      "name_part": "大义贼",
+      "source": {
+        "class": "TianXiaDuBuDeDaYiZeiCard",
+        "name": "天下独/步的大义贼",
+        "relative_path": "project_review/Scripts/Cards/Special/TianXiaDuBuDeDaYiZeiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 16,
+          "max": 30,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "源卡消耗两攻击牌或有爪牙即可免费打出的逻辑拆进条件库"
+    },
+    {
+      "id": "fx.tian_zhi_yue",
+      "name_part": "天之月",
+      "source": {
+        "class": "TianZhiYueCard",
+        "name": "天之月",
+        "relative_path": "project_review/Scripts/Cards/Special/TianZhiYueCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 8,
+          "max": 20,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "取消特殊召唤需要消耗2张攻击牌的条件"
+    },
+    {
+      "id": "fx.tun_shi_bai_wan_de_bao_shi_shou",
+      "name_part": "暴食兽",
+      "source": {
+        "class": "TunShiBaiWanDeBaoShiShouCard",
+        "name": "吞食百万的暴食兽",
+        "relative_path": "project_review/Scripts/Cards/Special/TunShiBaiWanDeBaoShiShouCard.cs"
+      },
+      "target": "enemy",
+      "text": "向除外堆加入{banish}张随机卡，然后造成等同于除外堆卡数×{factor}的伤害。",
+      "parameters": {
+        "banish": {
+          "min": 3,
+          "max": 8,
+          "step": 1
+        },
+        "factor": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        },
+        {
+          "op": "custom_attack_by_banished_count",
+          "args": [
+            "$factor"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留按除外堆规模打伤害，不需要异解牌"
+    },
+    {
+      "id": "fx.wang_zhi_guan",
+      "name_part": "王之棺",
+      "source": {
+        "class": "WangZhiGuanCard",
+        "name": "王之棺",
+        "relative_path": "project_review/Scripts/Cards/Special/WangZhiGuanCard.cs"
+      },
+      "target": "self",
+      "text": "每回合开始时，从弃牌堆取回1张随机牌，并对随机敌人造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 12,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_turn_start_retrieve_and_attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "用通用弃牌替代荷鲁斯怪兽，构成独立持续能力"
+    },
+    {
+      "id": "fx.xian_shi_duan_li",
+      "name_part": "现世",
+      "source": {
+        "class": "XianShiDuanLiCard",
+        "name": "现世断离",
+        "relative_path": "project_review/Scripts/Cards/Special/XianShiDuanLiCard.cs"
+      },
+      "target": "choose_card",
+      "text": "从消耗堆取回{count}张牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "retrieve_exhaust",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡消耗1张手牌前置代价独立抽入条件库"
+    },
+    {
+      "id": "fx.xian_shi_yu_ming_jie_de_ni_zhuan",
+      "name_part": "逆转",
+      "source": {
+        "class": "XianShiYuMingJieDeNiZhuanCard",
+        "name": "现世与冥界的逆转",
+        "relative_path": "project_review/Scripts/Cards/Special/XianShiYuMingJieDeNiZhuanCard.cs"
+      },
+      "target": "self",
+      "text": "交换消耗堆与弃牌堆里的全部牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "swap_exhaust_and_discard",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡失去生命的付费逻辑独立，互换牌堆不限制系列"
+    },
+    {
+      "id": "fx.xiao_ming_de_bao_pai",
+      "name_part": "削命",
+      "source": {
+        "class": "XiaoMingDeBaoPaiCard",
+        "name": "削命的宝牌",
+        "relative_path": "project_review/Scripts/Cards/Special/XiaoMingDeBaoPaiCard.cs"
+      },
+      "target": "self",
+      "text": "将手牌抽至{hand}张，本回合结束时丢弃所有手牌。",
+      "parameters": {
+        "hand": {
+          "min": 3,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_draw_until_hand_size",
+          "args": [
+            "$hand"
+          ]
+        },
+        {
+          "op": "custom_discard_all_at_turn_end",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留原卡抽手牌和延后清空，是同源的一体化效果"
+    },
+    {
+      "id": "fx.xiao_shi_jie",
+      "name_part": "小世界",
+      "source": {
+        "class": "XiaoShiJieCard",
+        "name": "小世界",
+        "relative_path": "project_review/Scripts/Cards/Special/XiaoShiJieCard.cs"
+      },
+      "target": "self",
+      "text": "生成1张随机卡加入手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Any",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡先消耗手牌A的成本已拆到独立条件；取消三段匹配，效果专注生成一张卡"
+    },
+    {
+      "id": "fx.xing_bao_qi_liu_zhan",
+      "name_part": "星爆气流斩",
+      "source": {
+        "class": "XingBaoQiLiuZhanCard",
+        "name": "星爆气流斩",
+        "relative_path": "project_review/Scripts/Cards/Special/XingBaoQiLiuZhanCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害{hits}次，本回合每打出过1张攻击牌，每次伤害提高{bonus}点。",
+      "parameters": {
+        "damage": {
+          "min": 2,
+          "max": 8,
+          "step": 1
+        },
+        "hits": {
+          "min": 5,
+          "max": 12,
+          "step": 1
+        },
+        "bonus": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_multiattack_scaled_attacks_played",
+          "args": [
+            "$damage",
+            "$hits",
+            "$bonus"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留多段攻击随攻击次数成长的原机制"
+    },
+    {
+      "id": "fx.xing_qiu_gai_zao",
+      "name_part": "改造",
+      "source": {
+        "class": "XingQiuGaiZaoCard",
+        "name": "星球改造",
+        "relative_path": "project_review/Scripts/Cards/Special/XingQiuGaiZaoCard.cs"
+      },
+      "target": "self",
+      "text": "从随机卡池选择1张能力牌加入手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "generate_choose_random_to_hand",
+          "args": [
+            "Power",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡检索能力牌的通用化"
+    },
+    {
+      "id": "fx.ya_kong_jian_zhan_dou",
+      "name_part": "亚空间",
+      "source": {
+        "class": "YaKongJianZhanDouCard",
+        "name": "亚空间战斗",
+        "relative_path": "project_review/Scripts/Cards/Special/YaKongJianZhanDouCard.cs"
+      },
+      "target": "choose_card",
+      "text": "查看抽牌堆顶{reveal}张牌，将其中{take}张加入手牌，其余送入弃牌堆。",
+      "parameters": {
+        "reveal": {
+          "min": 3,
+          "max": 5,
+          "step": 1
+        },
+        "take": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_pick_draw_top_discard_rest",
+          "args": [
+            "$reveal",
+            "$take"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "取消原卡按费用2分支和损血，保留高密度牌库筛选"
+    },
+    {
+      "id": "fx.yang_yan_sheng_wu",
+      "name_part": "羊衍生物",
+      "source": {
+        "class": "YangYanShengWuCard",
+        "name": "羊衍生物",
+        "relative_path": "project_review/Scripts/Cards/Special/YangYanShengWuCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡，抽1张牌。",
+      "parameters": {
+        "block": {
+          "min": 4,
+          "max": 17,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "draw",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把抽到羊时自动格挡补抽提取为当前卡主动效果，不复制无法打出的属性"
+    },
+    {
+      "id": "fx.yi_cun_jia",
+      "name_part": "一寸家",
+      "source": {
+        "class": "YiCunJiaCard",
+        "name": "一寸家",
+        "relative_path": "project_review/Scripts/Cards/Special/YiCunJiaCard.cs"
+      },
+      "target": "self",
+      "text": "本回合你造成的伤害翻倍，受到的伤害减半。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_gain_double_damage_half_taken_this_turn",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留一寸家战斗姿态，不再永久扣最大能量"
+    },
+    {
+      "id": "fx.yi_jie_duo_zui_hai",
+      "name_part": "多罪海",
+      "source": {
+        "class": "YiJieDuoZuiHaiCard",
+        "name": "异解·多罪海",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieDuoZuiHaiCard.cs"
+      },
+      "target": "enemy",
+      "text": "向除外堆加入{banish}张随机卡，造成{damage}点伤害。",
+      "parameters": {
+        "banish": {
+          "min": 4,
+          "max": 10,
+          "step": 1
+        },
+        "damage": {
+          "min": 12,
+          "max": 26,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        },
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留原卡除外加伤害的直接效果，复杂的系列数量阶梯改为单独条件候选"
+    },
+    {
+      "id": "fx.yi_jie_fu_yin",
+      "name_part": "福音",
+      "source": {
+        "class": "YiJieFuYinCard",
+        "name": "异解·福音",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieFuYinCard.cs"
+      },
+      "target": "self",
+      "text": "每回合开始时，向除外堆加入{count}张随机攻击牌，再打出其中1张。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_turn_start_banish_and_play_attack",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将异解怪兽限定改为随机攻击牌，确保没有特殊卡也能发挥效果"
+    },
+    {
+      "id": "fx.yi_jie_huang_quan_guo",
+      "name_part": "黄泉国",
+      "source": {
+        "class": "YiJieHuangQuanGuoCard",
+        "name": "异解·黄泉国",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieHuangQuanGuoCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡，向除外堆加入{banish}张随机卡。",
+      "parameters": {
+        "block": {
+          "min": 10,
+          "max": 22,
+          "step": 1
+        },
+        "banish": {
+          "min": 3,
+          "max": 7,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "抽取原卡直接防御和除外，原系列回收分支另进入相关条件候选"
+    },
+    {
+      "id": "fx.yi_jie_ming_shen_fu",
+      "name_part": "冥神府",
+      "source": {
+        "class": "YiJieMingShenFuCard",
+        "name": "异解·冥神府",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieMingShenFuCard.cs"
+      },
+      "target": "enemy",
+      "text": "向除外堆加入{banish}张随机卡，造成{damage}点伤害，抽{draw}张牌。",
+      "parameters": {
+        "banish": {
+          "min": 4,
+          "max": 10,
+          "step": 1
+        },
+        "damage": {
+          "min": 12,
+          "max": 26,
+          "step": 1
+        },
+        "draw": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        },
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将异解专属的额外抽牌简化为可独立抽取的固定抽牌量"
+    },
+    {
+      "id": "fx.yi_jie_nai_luo",
+      "name_part": "奈落",
+      "source": {
+        "class": "YiJieNaiLuoCard",
+        "name": "异解·奈落",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieNaiLuoCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，向除外堆加入{banish}张随机卡。",
+      "parameters": {
+        "damage": {
+          "min": 10,
+          "max": 24,
+          "step": 1
+        },
+        "banish": {
+          "min": 2,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留常规打出主效果；攻击意图免费条件转为独立限制模块"
+    },
+    {
+      "id": "fx.yi_jie_shen_pan",
+      "name_part": "审判",
+      "source": {
+        "class": "YiJieShenPanCard",
+        "name": "异解·审判",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieShenPanCard.cs"
+      },
+      "target": "self",
+      "text": "每次洗牌时，从除外堆取回{count}张随机牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_shuffle_retrieve_banished",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "去掉必须打出异解牌等系列限制，保留洗牌触发回收"
+    },
+    {
+      "id": "fx.yi_jie_tu_ao_nei_la",
+      "name_part": "图奥内拉",
+      "source": {
+        "class": "YiJieTuAoNeiLaCard",
+        "name": "异解·图奥内拉",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieTuAoNeiLaCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡，向除外堆加入{banish}张随机卡。",
+      "parameters": {
+        "block": {
+          "min": 8,
+          "max": 20,
+          "step": 1
+        },
+        "banish": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留单卡防御除外，多敌免费原条件已独立"
+    },
+    {
+      "id": "fx.yi_jie_wa_er_bo_le_si",
+      "name_part": "瓦尔波勒斯",
+      "source": {
+        "class": "YiJieWaErBoLeSiCard",
+        "name": "异解·瓦尔波勒斯",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieWaErBoLeSiCard.cs"
+      },
+      "target": "self",
+      "text": "每回合开始时，向除外堆加入{banish}张随机卡，再取回其中1张。",
+      "parameters": {
+        "banish": {
+          "min": 3,
+          "max": 7,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_turn_start_banish_and_retrieve",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将异解卡限制改为从任何随机除外牌中回收"
+    },
+    {
+      "id": "fx.yi_jie_xie_wu_er",
+      "name_part": "谢屋尔",
+      "source": {
+        "class": "YiJieXieWuErCard",
+        "name": "异解·谢屋尔",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieXieWuErCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，向除外堆加入{banish}张随机卡。",
+      "parameters": {
+        "damage": {
+          "min": 8,
+          "max": 23,
+          "step": 1
+        },
+        "banish": {
+          "min": 1,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将有其他攻击牌免费打出条件独立出来"
+    },
+    {
+      "id": "fx.yi_jie_xin_nen_gu",
+      "name_part": "欣嫩谷",
+      "source": {
+        "class": "YiJieXinNenGuCard",
+        "name": "异解·欣嫩谷",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieXinNenGuCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡，向除外堆加入{banish}张随机卡。",
+      "parameters": {
+        "block": {
+          "min": 9,
+          "max": 20,
+          "step": 1
+        },
+        "banish": {
+          "min": 1,
+          "max": 4,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将无其他攻击牌免费条件独立出来"
+    },
+    {
+      "id": "fx.yi_jie_zhan_yun_di",
+      "name_part": "战陨地",
+      "source": {
+        "class": "YiJieZhanYunDiCard",
+        "name": "异解·战陨地",
+        "relative_path": "project_review/Scripts/Cards/Special/YiJieZhanYunDiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，向除外堆加入{banish}张随机卡。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 26,
+          "step": 1
+        },
+        "banish": {
+          "min": 3,
+          "max": 8,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "add_random_banished",
+          "args": [
+            "$banish"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "先保证核心打击和除外独立，回收系列怪兽不进入此模板"
+    },
+    {
+      "id": "fx.yi_shi_xiu_zhan",
+      "name_part": "休战",
+      "source": {
+        "class": "YiShiXiuZhanCard",
+        "name": "一时休战",
+        "relative_path": "project_review/Scripts/Cards/Special/YiShiXiuZhanCard.cs"
+      },
+      "target": "self",
+      "text": "抽{draw}张牌，本回合所有角色造成的伤害为0。",
+      "parameters": {
+        "draw": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        },
+        {
+          "op": "apply_truce_all_until_turn_end",
+          "args": []
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "使用原卡真实的全体伤害归零，而不是旧稿错误的格挡效果"
+    },
+    {
+      "id": "fx.yi_xiang_ming_diao_yin",
+      "name_part": "调音",
+      "source": {
+        "class": "YiXiangMingDiaoYinCard",
+        "name": "异响鸣·调音",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingDiaoYinCard.cs"
+      },
+      "target": "self",
+      "text": "回复{heal}点生命，从消耗堆取回1张攻击牌，本回合费用为0。",
+      "parameters": {
+        "heal": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "heal",
+          "args": [
+            "$heal"
+          ]
+        },
+        {
+          "op": "retrieve_exhaust_type_free",
+          "args": [
+            "Attack",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留恢复生命+回收攻击的路线，不用灵摆卡"
+    },
+    {
+      "id": "fx.yi_xiang_ming_e_mo_zhi_sheng",
+      "name_part": "恶魔之声",
+      "source": {
+        "class": "YiXiangMingEMoZhiShengCard",
+        "name": "异响鸣·恶魔之声",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingEMoZhiShengCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，从消耗堆取回1张技能牌。",
+      "parameters": {
+        "damage": {
+          "min": 14,
+          "max": 29,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "retrieve_exhaust_type",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "去掉系列灵摆限定，使用通用消耗技能回收"
+    },
+    {
+      "id": "fx.yi_xiang_ming_jue_ze",
+      "name_part": "抉择",
+      "source": {
+        "class": "YiXiangMingJueZeCard",
+        "name": "异响鸣·抉择",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingJueZeCard.cs"
+      },
+      "target": "self",
+      "text": "回复{heal}点生命，抽{draw}张牌。",
+      "parameters": {
+        "heal": {
+          "min": 1,
+          "max": 4,
+          "step": 1
+        },
+        "draw": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "heal",
+          "args": [
+            "$heal"
+          ]
+        },
+        {
+          "op": "draw",
+          "args": [
+            "$draw"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "选择①恢复生命并抽牌作为独立效果；另一选项的失血可借同源条件组合"
+    },
+    {
+      "id": "fx.yi_xiang_ming_qing_zhu",
+      "name_part": "倾注",
+      "source": {
+        "class": "YiXiangMingQingZhuCard",
+        "name": "异响鸣·倾注",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingQingZhuCard.cs"
+      },
+      "target": "self",
+      "text": "回复{heal}点生命，生成1张随机卡加入手牌。",
+      "parameters": {
+        "heal": {
+          "min": 1,
+          "max": 4,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "heal",
+          "args": [
+            "$heal"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Any",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "选用原卡恢复生命加检索一张异响鸣的路线，取消系列限制"
+    },
+    {
+      "id": "fx.yi_xiang_ming_shen_yi_feng_bao_e_mo",
+      "name_part": "风暴恶魔",
+      "source": {
+        "class": "YiXiangMingShenYiFengBaoEMoCard",
+        "name": "异响鸣·神异-风暴恶魔",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingShenYiFengBaoEMoCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡{repeat}次。",
+      "parameters": {
+        "block": {
+          "min": 4,
+          "max": 11,
+          "step": 1
+        },
+        "repeat": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_gain_block_repeated",
+          "args": [
+            "$block",
+            "$repeat"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将指示物层数决定重复次数改成随机数值"
+    },
+    {
+      "id": "fx.yi_xiang_ming_tian_mo_zhi_sheng_xuan_ji",
+      "name_part": "选姬",
+      "source": {
+        "class": "YiXiangMingTianMoZhiShengXuanJiCard",
+        "name": "异响鸣·天魔之声选姬",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingTianMoZhiShengXuanJiCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机技能牌加入手牌。",
+      "parameters": {
+        "damage": {
+          "min": 14,
+          "max": 29,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "右键检索异响鸣改成直接生成普通技能卡"
+    },
+    {
+      "id": "fx.yi_xiang_ming_tian_mo_zhi_sheng_xuan_qi",
+      "name_part": "选器",
+      "source": {
+        "class": "YiXiangMingTianMoZhiShengXuanQiCard",
+        "name": "异响鸣·天魔之声选器",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingTianMoZhiShengXuanQiCard.cs"
+      },
+      "target": "self",
+      "text": "每获得{count}次增益，对所有敌人造成{damage}点伤害。",
+      "parameters": {
+        "count": {
+          "min": 2,
+          "max": 4,
+          "step": 1
+        },
+        "damage": {
+          "min": 12,
+          "max": 24,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_on_buff_count_attack_all",
+          "args": [
+            "$count",
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "把异响鸣指示物换成获得增益事件计数，能在普通牌组起效"
+    },
+    {
+      "id": "fx.yi_xiang_ming_tian_shi_zhi_sheng",
+      "name_part": "天使之声",
+      "source": {
+        "class": "YiXiangMingTianShiZhiShengCard",
+        "name": "异响鸣·天使之声",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingTianShiZhiShengCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，从消耗堆选择1张技能牌免费打出。",
+      "parameters": {
+        "damage": {
+          "min": 14,
+          "max": 29,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "custom_play_skill_from_exhaust_free",
+          "args": [
+            "1"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将异响鸣魔陷限定改成所有技能牌，不需要灵摆区"
+    },
+    {
+      "id": "fx.yi_xiang_ming_yao_qing",
+      "name_part": "邀请",
+      "source": {
+        "class": "YiXiangMingYaoQingCard",
+        "name": "异响鸣·邀请",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingYaoQingCard.cs"
+      },
+      "target": "self",
+      "text": "生成{count}张随机攻击牌加入手牌，本回合费用为0。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Attack",
+            "$count",
+            "FreeThisTurn"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把检索异响鸣怪兽改为通用攻击牌"
+    },
+    {
+      "id": "fx.yi_xiang_ming_yi_shen_guang_yao_tian_shi",
+      "name_part": "光耀天使",
+      "source": {
+        "class": "YiXiangMingYiShenGuangYaoTianShiCard",
+        "name": "异响鸣·异神-光耀天使",
+        "relative_path": "project_review/Scripts/Cards/Special/YiXiangMingYiShenGuangYaoTianShiCard.cs"
+      },
+      "target": "all_enemies",
+      "text": "对所有敌人造成{damage}点伤害{hits}次。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 12,
+          "step": 1
+        },
+        "hits": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_attack_all_repeated",
+          "args": [
+            "$damage",
+            "$hits"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "用随机次数取代异响鸣指示物层数，不要求额外怪兽"
+    },
+    {
+      "id": "fx.you_shi_duan_li",
+      "name_part": "幽世",
+      "source": {
+        "class": "YouShiDuanLiCard",
+        "name": "幽世断离",
+        "relative_path": "project_review/Scripts/Cards/Special/YouShiDuanLiCard.cs"
+      },
+      "target": "choose_card",
+      "text": "从消耗堆取回{count}张牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "retrieve_exhaust",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "除外手牌的另一半操作作为独立可选支付"
+    },
+    {
+      "id": "fx.yu_chun_de_fu_zang",
+      "name_part": "副葬",
+      "source": {
+        "class": "YuChunDeFuZangCard",
+        "name": "愚蠢的副葬",
+        "relative_path": "project_review/Scripts/Cards/Special/YuChunDeFuZangCard.cs"
+      },
+      "target": "self",
+      "text": "生成1张随机技能牌，将其送入弃牌堆。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "generate_random_to_discard",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留检索并丢弃一张技能牌的原卡行为，取消系列依赖"
+    },
+    {
+      "id": "fx.yu_chun_de_mai_zang",
+      "name_part": "埋葬",
+      "source": {
+        "class": "YuChunDeMaiZangCard",
+        "name": "愚蠢的埋葬",
+        "relative_path": "project_review/Scripts/Cards/Special/YuChunDeMaiZangCard.cs"
+      },
+      "target": "self",
+      "text": "生成1张随机攻击牌，将其送入弃牌堆。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "generate_random_to_discard",
+          "args": [
+            "Attack",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "保留检索并丢弃一张攻击牌的原卡行为，取消系列依赖"
+    },
+    {
+      "id": "fx.zeng_zhi",
+      "name_part": "增殖",
+      "source": {
+        "class": "ZengZhiCard",
+        "name": "增殖",
+        "relative_path": "project_review/Scripts/Cards/Special/ZengZhiCard.cs"
+      },
+      "target": "enemy",
+      "text": "复制目标敌人，复制体没有意图。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_clone_enemy_no_intent",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "来自原卡战斗复制；效果不依赖任何特殊牌"
+    },
+    {
+      "id": "fx.zhen_zhu_shi_jie",
+      "name_part": "珍珠世界",
+      "source": {
+        "class": "ZhenZhuShiJieCard",
+        "name": "珍珠世界",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhenZhuShiJieCard.cs"
+      },
+      "target": "self",
+      "text": "每次打出攻击牌时，对随机敌人造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 13,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_on_attack_damage",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "将珠泪专属打出触发扩展为普通攻击牌"
+    },
+    {
+      "id": "fx.zhong_yan_de_dao_ji_shi",
+      "name_part": "倒计时",
+      "source": {
+        "class": "ZhongYanDeDaoJiShiCard",
+        "name": "终焉的倒计时",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhongYanDeDaoJiShiCard.cs"
+      },
+      "target": "self",
+      "text": "经过{turns}个回合开始后，消灭所有敌人。",
+      "parameters": {
+        "turns": {
+          "min": 4,
+          "max": 10,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_countdown_execute_all",
+          "args": [
+            "$turns"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留倒计时获胜但缩短至可实战验证区间；失血移到条件库"
+    },
+    {
+      "id": "fx.zhu_lei_ai_chang",
+      "name_part": "哀唱",
+      "source": {
+        "class": "ZhuLeiAiChangCard",
+        "name": "珠泪·哀唱",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiAiChangCard.cs"
+      },
+      "target": "enemy",
+      "text": "眩晕目标{turns}回合。",
+      "parameters": {
+        "turns": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_stun_enemy",
+          "args": [
+            "$turns"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留哀唱右键眩晕的核心，去掉手牌系列及一次击晕限制"
+    },
+    {
+      "id": "fx.zhu_lei_can_xiang",
+      "name_part": "残响",
+      "source": {
+        "class": "ZhuLeiCanXiangCard",
+        "name": "珠泪·残响",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiCanXiangCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，获得{block}点格挡，给予{weak}层虚弱。",
+      "parameters": {
+        "damage": {
+          "min": 5,
+          "max": 14,
+          "step": 1
+        },
+        "block": {
+          "min": 4,
+          "max": 12,
+          "step": 1
+        },
+        "weak": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "apply_weak",
+          "args": [
+            "$weak"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原来先丢1张攻击牌已拆入条件库，不再要求珠泪卡"
+    },
+    {
+      "id": "fx.zhu_lei_fan_xiang",
+      "name_part": "反响",
+      "source": {
+        "class": "ZhuLeiFanXiangCard",
+        "name": "珠泪·反响",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiFanXiangCard.cs"
+      },
+      "target": "choose_card",
+      "text": "从弃牌堆取回{count}张牌。",
+      "parameters": {
+        "count": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "retrieve_discard",
+          "args": [
+            "$count"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "取消必须是珠泪怪兽与同费用丢弃要求，成为通用回收"
+    },
+    {
+      "id": "fx.zhu_lei_gu_dong",
+      "name_part": "鼓动",
+      "source": {
+        "class": "ZhuLeiGuDongCard",
+        "name": "珠泪·鼓动",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiGuDongCard.cs"
+      },
+      "target": "enemy",
+      "text": "清除目标的格挡和全部增益。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_purge_enemy_block_and_positive_powers",
+          "args": []
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "对应原卡清除格挡力量等能力；丢弃1张手牌移到独立条件"
+    },
+    {
+      "id": "fx.zhu_lei_ju_she",
+      "name_part": "俱舍",
+      "source": {
+        "class": "ZhuLeiJuSheCard",
+        "name": "珠泪·俱舍",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiJuSheCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，将抽牌堆顶{mill}张牌送入弃牌堆。",
+      "parameters": {
+        "damage": {
+          "min": 12,
+          "max": 28,
+          "step": 1
+        },
+        "mill": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "mill_top",
+          "args": [
+            "$mill"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "源卡以消耗弃牌换免费打出已抽出独立条件"
+    },
+    {
+      "id": "fx.zhu_lei_ka_lei_duo_ha_te",
+      "name_part": "卡雷多哈特",
+      "source": {
+        "class": "ZhuLeiKaLeiDuoHaTeCard",
+        "name": "珠泪·卡雷多哈特",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiKaLeiDuoHaTeCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，给予所有敌人{weak}层虚弱。",
+      "parameters": {
+        "damage": {
+          "min": 18,
+          "max": 36,
+          "step": 1
+        },
+        "weak": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "apply_weak_all",
+          "args": [
+            "$weak"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将原本驻场触发群体虚弱提炼到即时效果，取消融合材料"
+    },
+    {
+      "id": "fx.zhu_lei_lei_nuo_ha_te",
+      "name_part": "雷诺哈特",
+      "source": {
+        "class": "ZhuLeiLeiNuoHaTeCard",
+        "name": "珠泪·雷诺哈特",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiLeiNuoHaTeCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机攻击牌并送入弃牌堆。",
+      "parameters": {
+        "damage": {
+          "min": 9,
+          "max": 21,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_discard",
+          "args": [
+            "Attack",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "将检索并送墓下级珠泪改为通用攻击牌"
+    },
+    {
+      "id": "fx.zhu_lei_lu_sha_ka",
+      "name_part": "露莎卡",
+      "source": {
+        "class": "ZhuLeiLuShaKaCard",
+        "name": "珠泪·露莎卡人鱼",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiLuShaKaCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，获得{artifact}层人工制品。",
+      "parameters": {
+        "damage": {
+          "min": 14,
+          "max": 29,
+          "step": 1
+        },
+        "artifact": {
+          "min": 1,
+          "max": 2,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "gain_artifact",
+          "args": [
+            "$artifact"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把回合结束时获得人工制品的驻场机制提取为即时效果"
+    },
+    {
+      "id": "fx.zhu_lei_mei_luo",
+      "name_part": "梅洛",
+      "source": {
+        "class": "ZhuLeiMeiLuoCard",
+        "name": "珠泪·梅洛",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiMeiLuoCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，将抽牌堆顶{mill}张牌送入弃牌堆。",
+      "parameters": {
+        "damage": {
+          "min": 6,
+          "max": 17,
+          "step": 1
+        },
+        "mill": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "mill_top",
+          "args": [
+            "$mill"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡打出主效果，省略珠泪融合等系列送墓连锁"
+    },
+    {
+      "id": "fx.zhu_lei_pi_xian",
+      "name_part": "劈弦",
+      "source": {
+        "class": "ZhuLeiPiXianCard",
+        "name": "珠泪·劈弦",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiPiXianCard.cs"
+      },
+      "target": "self",
+      "text": "每次打出攻击牌，将抽牌堆顶{mill}张牌送入弃牌堆，并使所有敌人本回合失去{strength_loss}点力量。",
+      "parameters": {
+        "mill": {
+          "min": 1,
+          "max": 3,
+          "step": 1
+        },
+        "strength_loss": {
+          "min": 2,
+          "max": 6,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "custom_power_attack_mills_and_weakens",
+          "args": [
+            "$mill",
+            "$strength_loss"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "去除珠泪怪兽触发限定，保留持续压制效果"
+    },
+    {
+      "id": "fx.zhu_lei_sai_ren",
+      "name_part": "塞壬",
+      "source": {
+        "class": "ZhuLeiSaiRenCard",
+        "name": "珠泪·塞壬",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiSaiRenCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害。",
+      "parameters": {
+        "damage": {
+          "min": 8,
+          "max": 20,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "右键丢1手换免费打出的代价拆到条件库，送墓融合不继承"
+    },
+    {
+      "id": "fx.zhu_lei_shui_xian",
+      "name_part": "水仙",
+      "source": {
+        "class": "ZhuLeiShuiXianCard",
+        "name": "珠泪·水仙人鱼",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiShuiXianCard.cs"
+      },
+      "target": "enemy",
+      "text": "造成{damage}点伤害，生成1张随机卡加入手牌。",
+      "parameters": {
+        "damage": {
+          "min": 14,
+          "max": 26,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "attack",
+          "args": [
+            "$damage"
+          ]
+        },
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Any",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "从登场检索效果提炼，去掉珠泪限定与融合素材"
+    },
+    {
+      "id": "fx.zhu_lei_xiao_mei",
+      "name_part": "小美",
+      "source": {
+        "class": "ZhuLeiXiaoMeiCard",
+        "name": "珠泪·小美人鱼",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiXiaoMeiCard.cs"
+      },
+      "target": "self",
+      "text": "获得{block}点格挡，将抽牌堆顶{mill}张牌送入弃牌堆。",
+      "parameters": {
+        "block": {
+          "min": 8,
+          "max": 18,
+          "step": 1
+        },
+        "mill": {
+          "min": 2,
+          "max": 5,
+          "step": 1
+        }
+      },
+      "actions": [
+        {
+          "op": "gain_block",
+          "args": [
+            "$block"
+          ]
+        },
+        {
+          "op": "mill_top",
+          "args": [
+            "$mill"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "把应对时的格挡和送墓合并为单次主动效果"
+    },
+    {
+      "id": "fx.zhu_lei_zhua_yin",
+      "name_part": "爪音",
+      "source": {
+        "class": "ZhuLeiZhuaYinCard",
+        "name": "珠泪·爪音",
+        "relative_path": "project_review/Scripts/Cards/Special/ZhuLeiZhuaYinCard.cs"
+      },
+      "target": "enemy",
+      "text": "眩晕目标1回合，然后生成1张随机攻击牌送入弃牌堆。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "custom_stun_enemy",
+          "args": [
+            "1"
+          ]
+        },
+        {
+          "op": "generate_random_to_discard",
+          "args": [
+            "Attack",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "custom_handler",
+      "adaptation_note": "保留应对眩晕与检索丢弃动作，去掉珠泪限定"
+    },
+    {
+      "id": "fx.zuo_wan_de_dai_jia",
+      "name_part": "左腕",
+      "source": {
+        "class": "ZuoWanDeDaiJiaCard",
+        "name": "左腕的代价",
+        "relative_path": "project_review/Scripts/Cards/Special/ZuoWanDeDaiJiaCard.cs"
+      },
+      "target": "self",
+      "text": "生成1张随机技能牌加入手牌。",
+      "parameters": {},
+      "actions": [
+        {
+          "op": "generate_random_to_hand",
+          "args": [
+            "Skill",
+            "1"
+          ]
+        }
+      ],
+      "implementation": "primitive_actions",
+      "adaptation_note": "原卡其他手牌全部消耗及手牌数限制拆到条件库"
+    }
+  ]
+}

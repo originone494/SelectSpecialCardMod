@@ -37,7 +37,6 @@ public class KeMoShenShengGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, 
     ];
 
     protected override HashSet<CardTag> CanonicalTags => [
-        SelectTags.ExtraMonster,
         SelectTags.Link3,
         SelectTags.KeMo,
         SelectTags.KeMoGuaiShou,
@@ -48,7 +47,6 @@ public class KeMoShenShengGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.Link3),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),

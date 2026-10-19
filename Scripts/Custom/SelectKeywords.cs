@@ -29,12 +29,14 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 [RegisterOwnedCardKeyword(nameof(Xing4), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(TiaoZheng), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ChuWai), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.AfterCardDescription)]
-[RegisterOwnedCardKeyword(nameof(ExtraMonster), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ChaoLiang), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
+[RegisterOwnedCardKeyword(nameof(ChaoLiangGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(TongBuGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(GuangEMo), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(Link2), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(Link1), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(Link3), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(Link4), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 // 「融合怪兽」：融合怪兽的统一标记（「珠泪融合怪兽」＝珠泪怪兽＋融合怪兽，以此类推）
 [RegisterOwnedCardKeyword(nameof(RongHeGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 // 刻魔系列（层级：刻魔 ⊃ 刻魔怪兽／刻魔魔法／刻魔陷阱）
@@ -51,12 +53,11 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 [RegisterOwnedCardKeyword(nameof(SongMu), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 // 「应对」：不进卡牌的关键字列表，只在悬停提示里展示（卡面靠"应对：…"纯文本 + YingDui 标签承担）
 [RegisterOwnedCardKeyword(nameof(YingDui), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
-// —— 珠泪系列 ——（层级：珠泪 ⊃ 珠泪怪兽／珠泪魔法／珠泪陷阱；珠泪怪兽 ⊃ 珠泪融合怪兽／珠泪下级怪兽）
+// —— 珠泪系列 ——（层级：珠泪 ⊃ 珠泪怪兽／珠泪魔法／珠泪陷阱；珠泪怪兽 ⊃ 珠泪融合怪兽）
 [RegisterOwnedCardKeyword(nameof(ZhuLei), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ZhuLeiMoFa), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ZhuLeiXianJing), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ZhuLeiGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
-[RegisterOwnedCardKeyword(nameof(ZhuLeiXiaJiGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(ZhuLeiRongHe), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(JuShe), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 [RegisterOwnedCardKeyword(nameof(YiXiangMing), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
@@ -69,8 +70,18 @@ namespace SelectSpecialCardMod.Scripts.Custom;
 // 刻度只通过悬停提示说明，不向卡面描述追加文本。
 [RegisterOwnedCardKeyword(nameof(KeDu3), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
 [RegisterOwnedCardKeyword(nameof(KeDu5), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.None)]
+[RegisterOwnedCardKeyword(nameof(YaoShengGuaiShou), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YaoSheng), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YaoShengMoFa), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
+[RegisterOwnedCardKeyword(nameof(YaoShengXianJing), CardDescriptionPlacement = ModKeywordCardDescriptionPlacement.BeforeCardDescription)]
 public class SelectKeywords
 {
+    public static readonly CardKeyword YaoShengGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YaoShengGuaiShou)).GetModCardKeyword();
+    public static readonly CardKeyword YaoSheng = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YaoSheng)).GetModCardKeyword();
+    public static readonly CardKeyword YaoShengMoFa = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YaoShengMoFa)).GetModCardKeyword();
+    public static readonly CardKeyword YaoShengXianJing = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(YaoShengXianJing)).GetModCardKeyword();
+    public static readonly CardKeyword ChaoLiangGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ChaoLiangGuaiShou)).GetModCardKeyword();
+    public static readonly CardKeyword TongBuGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(TongBuGuaiShou)).GetModCardKeyword();
     public static readonly CardKeyword ChaoLiang = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ChaoLiang)).GetModCardKeyword();
 
     // 「检索」：从某一卡池中将若干张牌加入手牌
@@ -129,8 +140,6 @@ public class SelectKeywords
     // 「除外」：打出后进入除外堆，通用落堆行为见 ChuWaiKeywordPatch。
     public static readonly CardKeyword ChuWai = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ChuWai)).GetModCardKeyword();
 
-    // 「额外怪兽」：描述留空
-    public static readonly CardKeyword ExtraMonster = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ExtraMonster)).GetModCardKeyword();
 
     public static readonly CardKeyword GuangEMo = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(GuangEMo)).GetModCardKeyword();
 
@@ -139,6 +148,7 @@ public class SelectKeywords
     public static readonly CardKeyword Link1 = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(Link1)).GetModCardKeyword();
 
     public static readonly CardKeyword Link3 = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(Link3)).GetModCardKeyword();
+    public static readonly CardKeyword Link4 = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(Link4)).GetModCardKeyword();
 
     // 「融合怪兽」：融合怪兽的统一标记（配合系列怪兽标签判断"某系列的融合怪兽"）
     public static readonly CardKeyword RongHeGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(RongHeGuaiShou)).GetModCardKeyword();
@@ -188,8 +198,6 @@ public class SelectKeywords
     // 「珠泪怪兽」：珠泪卡中的怪兽卡（含融合怪兽）
     public static readonly CardKeyword ZhuLeiGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ZhuLeiGuaiShou)).GetModCardKeyword();
 
-    // 「珠泪下级怪兽」：珠泪怪兽里非融合的那部分（只用于悬停说明，不挂进 CanonicalKeywords）
-    public static readonly CardKeyword ZhuLeiXiaJiGuaiShou = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ZhuLeiXiaJiGuaiShou)).GetModCardKeyword();
 
     // 「珠泪融合」：发动式关键字（塞壬／小美人鱼／梅洛），机制见 Tool/ZhuLeiFusion
     public static readonly CardKeyword ZhuLeiRongHe = ModContentRegistry.GetQualifiedKeywordId(Entry.ModId, nameof(ZhuLeiRongHe)).GetModCardKeyword();

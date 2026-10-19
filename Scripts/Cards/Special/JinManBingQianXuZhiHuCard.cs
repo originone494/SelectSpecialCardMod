@@ -34,7 +34,7 @@ public class JinManBingQianXuZhiHuCard : SelectSpecialBaseCard
             Owner,
             Entry.ChuWaiPile,
             _exileCards,
-            filter: c => c.Tags.Contains(SelectTags.ExtraMonster));
+            filter: c => CardClassification.IsExtraMonster(c));
 
         // 查看抽牌堆顶的6张卡，选择1张加入手牌（其余留在抽牌堆顶）
         await SelectToolCmd.Foresee(choiceContext, Owner, _foreseeAmount, source: this, remainingToDiscard: false);

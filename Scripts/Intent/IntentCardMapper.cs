@@ -173,7 +173,11 @@ public static class IntentCardMapper
             {
                 // 格挡和攻击一样按玩家侧算（含敏捷/遗物），并绿/红高亮；结算时传基础值，
                 // 引擎会再套一次同样的修正 → 显示的 = 打出的。其余意图用通用处理。
-                if (intent.IntentType == IntentType.Defend && fx is { BlockKnown: true })
+                if (intent.IntentType == IntentType.StatusCard)
+                    parts.Add(MonsterText.Of(MonsterText.SealStatus));
+                else if (intent.IntentType == IntentType.CardDebuff)
+                    parts.Add(MonsterText.Of(MonsterText.SealCurse));
+                else if (intent.IntentType == IntentType.Defend && fx is { BlockKnown: true })
                 {
                     int shown = PlayerSideBlock(card, fx.Block);
                     parts.Add(MonsterText.Of(MonsterText.Block,
@@ -764,6 +768,12 @@ public static class IntentCardMapper
             dbl.IntentDamage = dbs.IntentDamage;
         if (copy is MonsterDisplayCard dst && source is MonsterDisplayCard stc)
             dst.IntentText = stc.IntentText;
+        // InitMove 会按怪物意图数设置费用；仅抢来的副本改为0费，怪物原卡保持原费用。
+        copy.EnergyCost.SetCustomBaseCost(0);
+        if (copy is MonsterStatusCard status)
+            status.LiveText = () => MonsterText.Of(MonsterText.SealStatus);
+        else if (copy is MonsterCardDebuffCard curse)
+            curse.LiveText = () => MonsterText.Of(MonsterText.SealCurse);
         return copy;
     }
 

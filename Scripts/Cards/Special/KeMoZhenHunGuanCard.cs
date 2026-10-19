@@ -37,7 +37,6 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
     ];
 
     protected override HashSet<CardTag> CanonicalTags => [
-        SelectTags.ExtraMonster,
         SelectTags.GuangEMo,
         SelectTags.Link1,
         SelectTags.KeMoGuaiShou,
@@ -49,7 +48,6 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
     public override IEnumerable<CardKeyword> CanonicalKeywords => [];
 
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),
         HoverTipFactory.FromKeyword(SelectKeywords.Link1),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),
@@ -75,7 +73,7 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
 
     public bool CanSummonFromExtraDeck(Player player)
         => !PerTurnOnce.IsUsed(player, SummonOnceKey)
-           && PileType.Hand.GetPile(player).Cards.Any(c => c.Tags.Contains(SelectTags.GuangEMo));
+           && PileType.Hand.GetPile(player).Cards.Any(c => MaterialPayment.CanUseAsMaterial(c) && c.Tags.Contains(SelectTags.GuangEMo));
 
     public async Task<bool> PaySummonCost(PlayerChoiceContext ctx, Player player)
     {
@@ -87,7 +85,7 @@ public class KeMoZhenHunGuanCard : SelectSpecialBaseCard, ISpecialEffectCard, IE
             prefs: new CardSelectorPrefs(prompt, 0, 1) { RequireManualConfirmation = true },
             context: ctx,
             player: player,
-            filter: c => c.Tags.Contains(SelectTags.GuangEMo),
+            filter: c => MaterialPayment.CanUseAsMaterial(c) && c.Tags.Contains(SelectTags.GuangEMo),
             // 手动召唤没有普通打出生命周期，确认后立即恢复手牌节点。
             source: null!)).ToList();
         if (chosen.Count < 1) return false;

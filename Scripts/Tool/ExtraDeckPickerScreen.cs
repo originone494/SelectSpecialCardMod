@@ -1,26 +1,25 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using MegaCrit.Sts2.Core.Assets;
 using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.UI;
 using MegaCrit.Sts2.Core.Localization;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Nodes.Cards;
-using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 
 namespace SelectSpecialCardMod.Scripts.Tool;
 
 // 「额外卡组」大图选卡界面（局外）。
 // 入口：主菜单 → 模组设置 → 额外卡组 → 「打开额外卡组选择」（ExtraDeckSettings）。
-// 独立全屏界面：每张「额外怪兽」显示成一张大卡，点一下选中/取消，最多 15 张；选择即时保存。
+// 独立全屏界面：自适应大卡网格，完整卡面只渲染一次，滚动时使用缓存预览。
 public partial class ExtraDeckPickerScreen : Control
 {
     private const string LocTable = "card_selection";
-    private const int Columns = 5;
-    private const float MaxCardScale = 0.85f;
-    private const float MinCardScale = 0.45f;
-    private const int CardSeparation = 28;
+    private const float TargetCardScale = 1f;
+    private const float MaxCardScale = 1.15f;
+    private const float PreviewScale = 1.25f;
+    private const int CardSeparation = 24;
+    private const ulong ScrollIdleMsec = 150;
     // 卡面视觉的外框（相对卡节点原点；从游戏 scenes/cards/card.tscn 量出来）：
     //   · 卡框本体 Frame 是以原点为中心的 300×422（-150..150 / -211..211）；
     //   · 费用徽章实际占 (-166..-102, -227..-163)（实测，从自检日志读出来的）；
@@ -43,8 +42,9 @@ public partial class ExtraDeckPickerScreen : Control
     private sealed class Entry
     {
         public Control Wrapper = null!;
-        public Control Tile = null!;      // 变暗/变亮用（游戏卡场景或自绘卡面）
-        public NCard? Card;               // 游戏卡（走了兜底自绘卡面时为 null）
+        public Control? Tile;             // 静态卡面，滚动离屏后保留缓存
+        public SubViewport? Preview;
+        public Label Placeholder = null!;
         public CardModel Model = null!;
         public Label Count = null!;       // 右下角显示"×N"
     }
@@ -52,9 +52,101 @@ public partial class ExtraDeckPickerScreen : Control
     private readonly List<Entry> _entries = [];
     private Label? _hintLabel;
     private Label? _countLabel;
+    private ScrollContainer? _scroll;
+    private GridContainer? _grid;
     private float _cardScale = MaxCardScale;
-    private ulong _bornMsec;
-    private int _dumpsDone;
+    private bool _layoutDirty = true;
+    private bool _visibleDirty = true;
+    private Entry? _renderingEntry;
+    private Control? _renderingSource;
+    private bool _previewReady;
+    private bool _previewRequested;
+    private ulong _previewStartFrame;
+    private ulong _lastScrollMsec;
+
+    public override void _Process(double delta)
+    {
+        if (_previewReady) FinishPreview();
+        if (_renderingEntry != null && !_previewRequested
+            && Engine.GetProcessFrames() >= _previewStartFrame + 2)
+        {
+            // 新视口和卡面的延迟排版需要先就绪，否则首帧可能缓存成空图。
+            RenderingServer.FramePostDraw += OnPreviewDrawn;
+            _renderingEntry.Preview!.RenderTargetUpdateMode = SubViewport.UpdateMode.Once;
+            _previewRequested = true;
+        }
+        if (_layoutDirty)
+        {
+            if (_scroll == null || _scroll.Size.X <= 1f) return;
+            UpdateLayout();
+            // 容器在本帧结束时重排，下一帧再判断哪些卡位可见。
+            return;
+        }
+        if (_visibleDirty) RefreshVisibleCards();
+        if (!_visibleDirty) SetProcess(false);
+    }
+
+    private void QueueLayout()
+    {
+        _layoutDirty = true;
+        QueueVisibleRefresh();
+    }
+
+    private void QueueVisibleRefresh()
+    {
+        _visibleDirty = true;
+        SetProcess(true);
+    }
+
+    private void OnScrollChanged(double value)
+    {
+        _lastScrollMsec = Time.GetTicksMsec();
+        QueueVisibleRefresh();
+    }
+
+    private void UpdateLayout()
+    {
+        _layoutDirty = false;
+        // 始终预留滚动条宽度，避免滚动条出现后反复改变列数。
+        float available = Mathf.Max(1f, _scroll!.Size.X
+            - _scroll.GetVScrollBar().GetCombinedMinimumSize().X - 8f);
+        // 按接近原尺寸的大卡决定列数，避免为了多塞一列而把所有卡缩小。
+        int columns = Math.Clamp((int)Mathf.Floor((available + CardSeparation)
+            / (CardVisualBox.Size.X * TargetCardScale + CardSeparation)), 1, Math.Max(1, _entries.Count));
+        float cellWidth = Mathf.Max(1f, (available - CardSeparation * (columns - 1)) / columns);
+        _cardScale = Mathf.Min(MaxCardScale, cellWidth / CardVisualBox.Size.X);
+        _grid!.Columns = columns;
+        foreach (var entry in _entries)
+        {
+            entry.Wrapper.CustomMinimumSize = new Vector2(cellWidth, CardVisualBox.Size.Y * _cardScale);
+        }
+        _visibleDirty = true;
+    }
+
+    private void RefreshVisibleCards()
+    {
+        var visible = _scroll!.GetGlobalRect();
+        Entry? nextVisible = null;
+        Entry? nextHidden = null;
+        foreach (var entry in _entries)
+        {
+            var rect = entry.Wrapper.GetGlobalRect();
+            bool onScreen = rect.Intersects(visible);
+            if (entry.Tile != null)
+            {
+                entry.Tile.Visible = onScreen && entry != _renderingEntry;
+                continue;
+            }
+            if (onScreen) nextVisible ??= entry;
+            else nextHidden ??= entry;
+        }
+        var next = nextVisible ?? nextHidden;
+        _visibleDirty = next != null || _renderingEntry != null;
+        if (next == null || _renderingEntry != null) return;
+        // 滚动中只移动缓存图；停止后优先补齐可见卡，再逐帧预热其余卡。
+        if (_lastScrollMsec != 0 && Time.GetTicksMsec() - _lastScrollMsec < ScrollIdleMsec) return;
+        BuildVisual(next);
+    }
 
     /// <summary>打开选卡界面（已经开着就什么都不做）。</summary>
     public static void Open()
@@ -69,73 +161,6 @@ public partial class ExtraDeckPickerScreen : Control
         screen.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         screen.Build();
         _openLayer = layer;
-    }
-
-    // ── 临时诊断：把界面/列表/瓦片/卡位/卡的实际几何写进 user://SelectSpecialCardMod/extra_deck_layout.txt ──
-    // 定位完排版问题后删掉这段即可（每次打开界面最多写 3 次，间隔 0.5 秒）。
-    public override void _Process(double delta)
-    {
-        if (_dumpsDone >= 3) return;
-        ulong now = Time.GetTicksMsec();
-        if (_bornMsec == 0) _bornMsec = now;
-        if (now < _bornMsec + (ulong)(500 * (_dumpsDone + 1))) return;
-        _dumpsDone++;
-        DumpLayout(now);
-    }
-
-    private void DumpLayout(ulong now)
-    {
-        try
-        {
-            var lines = new List<string>
-            {
-                $"time={now} scale={_cardScale}",
-                $"viewport={GetViewportRect()}",
-                $"screen={GetGlobalRect()}",
-            };
-            if (_entries.Count > 0)
-            {
-                var entry = _entries[0];
-                var holder = entry.Tile;
-                lines.Add($"wrapper0={entry.Wrapper.GetGlobalRect()}");
-                lines.Add($"holder0={holder.GetGlobalRect()} scale={holder.Scale} pos={holder.Position} size={holder.Size}");
-                if (entry.Card != null)
-                {
-                    lines.Add($"card0={entry.Card.GetGlobalRect()} pos={entry.Card.Position} size={entry.Card.Size}");
-                    if (entry.Card.GetNodeOrNull<Control>("CardContainer/Frame") is { } frame)
-                        lines.Add($"frame0={frame.GetGlobalRect()} pos={frame.Position} size={frame.Size}");
-                    if (entry.Card.GetNodeOrNull<Control>("CardContainer/EnergyIcon") is { } energy)
-                        lines.Add($"energy0={energy.GetGlobalRect()} visible={energy.Visible}");
-                    if (entry.Card.GetNodeOrNull<Control>("CardContainer/StarIcon") is { } star)
-                        lines.Add($"star0={star.GetGlobalRect()} visible={star.Visible}");
-                    // 标签实际文本 + 两个费用口径，方便核对"卡面写的"和"卡牌数据"是否一致
-                    if (entry.Card.GetNodeOrNull<Label>("CardContainer/TitleLabel") is { } titleLabel)
-                        lines.Add($"titleText=\"{titleLabel.Text}\"");
-                    if (entry.Card.GetNodeOrNull<Label>("CardContainer/EnergyIcon/EnergyLabel") is { } costLabel)
-                        lines.Add($"costText=\"{costLabel.Text}\"");
-                    lines.Add($"model.Title=\"{entry.Model.Title}\" EnergyCost.Canonical={entry.Model.EnergyCost.Canonical}"
-                              + $" EnergyCost.GetWithModifiers={entry.Model.EnergyCost.GetWithModifiers(CostModifiers.None)}"
-                              + $" CostsX={entry.Model.EnergyCost.CostsX}"
-                              + $" HasLocalModifiers={entry.Model.EnergyCost.HasLocalModifiers}");
-                    lines.Add($"pool={entry.Model.Pool?.GetType().Name} EnergyColorName={entry.Model.Pool?.EnergyColorName}"
-                              + $" DeckEntryCardColor={entry.Model.Pool?.DeckEntryCardColor}"
-                              + $" EnergyOutlineColor={entry.Model.Pool?.EnergyOutlineColor}");
-                    if (entry.Card.GetNodeOrNull<TextureRect>("CardContainer/EnergyIcon") is { } orb)
-                        lines.Add($"orbTexture={orb.Texture?.ResourcePath ?? "(null)"}");
-                    if (entry.Card.GetNodeOrNull<Label>("CardContainer/EnergyIcon/EnergyLabel") is { } costColorLabel)
-                        lines.Add($"costFontColor={costColorLabel.GetThemeColor("font_color")}"
-                                  + $" outline={costColorLabel.GetThemeColor("font_outline_color")}");
-                }
-            }
-            DirAccess.MakeDirRecursiveAbsolute("user://SelectSpecialCardMod");
-            using var file = Godot.FileAccess.Open("user://SelectSpecialCardMod/extra_deck_layout.txt",
-                Godot.FileAccess.ModeFlags.Write);
-            file?.StoreString(string.Join("\n", lines) + "\n");
-        }
-        catch (Exception e)
-        {
-            GD.PushWarning($"[SelectSpecialCardMod] 额外卡组：排版自检写入失败：{e.Message}");
-        }
     }
 
     private void Close()
@@ -178,31 +203,36 @@ public partial class ExtraDeckPickerScreen : Control
         title.AddThemeFontSizeOverride("font_size", 34);
         column.AddChild(title);
 
-        _hintLabel = new Label { Text = Loc(KeyHint) };
+        _hintLabel = new Label
+        {
+            Text = Loc(KeyHint),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+        };
         column.AddChild(_hintLabel);
 
         _countLabel = new Label();
         _countLabel.AddThemeFontSizeOverride("font_size", 22);
         column.AddChild(_countLabel);
 
-        var scroll = new ScrollContainer { SizeFlagsVertical = SizeFlags.ExpandFill };
-        scroll.HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled;
-        column.AddChild(scroll);
+        _scroll = new ScrollContainer
+        {
+            SizeFlagsVertical = SizeFlags.ExpandFill,
+            HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+        };
+        column.AddChild(_scroll);
+        _scroll.Resized += QueueLayout;
+        _scroll.GetVScrollBar().ValueChanged += OnScrollChanged;
 
-        // 按窗口宽度算缩放：保证 5 列加间隙一定放得下（不同分辨率都不会卡框出界）
-        float viewportWidth = GetViewportRect().Size.X;
-        float available = Mathf.Max(600f, viewportWidth - 96f /*左右边距*/ - 24f /*滚动条*/);
-        float tileWidth = (available - CardSeparation * (Columns - 1)) / Columns;
-        _cardScale = Mathf.Clamp(tileWidth / CardVisualBox.Size.X, MinCardScale, MaxCardScale);
-
-        var grid = new GridContainer { Columns = Columns };
-        grid.AddThemeConstantOverride("h_separation", CardSeparation);
-        grid.AddThemeConstantOverride("v_separation", CardSeparation);
-        scroll.AddChild(grid);
+        _grid = new GridContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+        _grid.AddThemeConstantOverride("h_separation", CardSeparation);
+        _grid.AddThemeConstantOverride("v_separation", CardSeparation);
+        _scroll.AddChild(_grid);
+        _grid.Resized += QueueVisibleRefresh;
 
         foreach (var model in ExtraDeckStore.AvailableExtraMonsters())
         {
-            grid.AddChild(BuildCardEntry(model));
+            _grid.AddChild(BuildCardEntry(model));
         }
 
         var footer = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.End };
@@ -221,40 +251,136 @@ public partial class ExtraDeckPickerScreen : Control
         footer.AddChild(done);
 
         RefreshSelection();
+        QueueLayout();
     }
 
     private Control BuildCardEntry(CardModel model)
     {
-        var wrapper = new Control { MouseFilter = MouseFilterEnum.Stop };
-        Control visual;
-        try
+        var wrapper = new Control
         {
-            visual = BuildGameCardVisual(model, wrapper);
-        }
-        catch (Exception e)
+            MouseFilter = MouseFilterEnum.Stop,
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            CustomMinimumSize = CardVisualBox.Size * _cardScale,
+        };
+        // 先创建轻量卡位，完整卡面按可见范围分帧补齐。
+        var placeholder = new Label
         {
-            // 兜底：局外渲染游戏卡场景失败时，自己拼一张（卡图 + 卡名 + 描述），保证界面能用
-            GD.PushWarning($"[SelectSpecialCardMod] 额外卡组：游戏卡场景渲染失败，改用简易卡面（{model.Title}）：{e.Message}");
-            foreach (Node child in wrapper.GetChildren()) child.QueueFree();
-            visual = BuildSimpleCardVisual(model, wrapper);
-        }
-
-        // 已选份数：×N 显示在瓦片右下角偏上（左上角是费用徽章），绿色、字号加大
-        var count = new Label
-        {
-            Position = new Vector2(wrapper.CustomMinimumSize.X - 60f, wrapper.CustomMinimumSize.Y - 54f),
+            Text = model.Title,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
             MouseFilter = MouseFilterEnum.Ignore,
         };
+        wrapper.AddChild(placeholder);
+        placeholder.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+
+        var count = new Label { MouseFilter = MouseFilterEnum.Ignore };
         count.AddThemeFontSizeOverride("font_size", 34);
         count.AddThemeColorOverride("font_color", new Color(0f, 1f, 0f));
         count.AddThemeColorOverride("font_outline_color", Colors.Black);
         count.AddThemeConstantOverride("outline_size", 8);
         wrapper.AddChild(count);
+        count.SetAnchorsAndOffsetsPreset(LayoutPreset.BottomRight);
+        count.OffsetLeft = -70f;
+        count.OffsetTop = -54f;
+        count.OffsetRight = -8f;
+        count.OffsetBottom = -8f;
+        count.ZIndex = 1;
 
-        var entry = new Entry { Wrapper = wrapper, Tile = visual, Model = model, Card = visual as NCard, Count = count };
+        var entry = new Entry { Wrapper = wrapper, Model = model, Placeholder = placeholder, Count = count };
         _entries.Add(entry);
         wrapper.GuiInput += ev => OnCardGuiInput(ev, entry);
         return wrapper;
+    }
+
+    private void BuildVisual(Entry entry)
+    {
+        var model = entry.Model;
+        // 每张缓存保留一个停止更新的渲染目标，无 GPU→CPU 读回和图片重传。
+        // 卡面源节点在首次渲染后释放，滚动时不会再执行游戏卡的着色器和排版。
+        var preview = new SubViewport
+        {
+            Size = new Vector2I((int)Mathf.Ceil(CardVisualBox.Size.X * PreviewScale),
+                (int)Mathf.Ceil(CardVisualBox.Size.Y * PreviewScale)),
+            TransparentBg = true,
+            Disable3D = true,
+            GuiDisableInput = true,
+            World2D = new World2D(),
+            RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled,
+        };
+        AddChild(preview);
+        var holder = new Control { Size = CardVisualBox.Size };
+        preview.AddChild(holder);
+        Control source;
+        try
+        {
+            source = BuildGameCardVisual(model, holder);
+            source.Scale = Vector2.One * PreviewScale;
+            source.PivotOffset = Vector2.Zero;
+            source.Position = -CardVisualBox.Position * PreviewScale;
+        }
+        catch (Exception e)
+        {
+            // 兜底：局外渲染游戏卡场景失败时，自己拼一张（卡图 + 卡名 + 描述），保证界面能用
+            GD.PushWarning($"[SelectSpecialCardMod] 额外卡组：游戏卡场景渲染失败，改用简易卡面（{model.Title}）：{e.Message}");
+            foreach (Node child in holder.GetChildren())
+            {
+                if (child is CanvasItem canvas) canvas.Hide();
+                child.QueueFree();
+            }
+            source = BuildSimpleCardVisual(model, holder);
+            holder.Scale = Vector2.One * PreviewScale;
+        }
+        FreezePreview(source);
+        var picture = new TextureRect
+        {
+            Texture = preview.GetTexture(),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            MouseFilter = MouseFilterEnum.Ignore,
+            Visible = false,
+        };
+        entry.Wrapper.AddChild(picture);
+        picture.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        entry.Tile = picture;
+        entry.Preview = preview;
+        _renderingEntry = entry;
+        _renderingSource = holder;
+        _previewReady = false;
+        _previewRequested = false;
+        _previewStartFrame = Engine.GetProcessFrames();
+        RefreshEntrySelection(entry);
+    }
+
+    private void OnPreviewDrawn() => _previewReady = true;
+
+    private void FinishPreview()
+    {
+        RenderingServer.FramePostDraw -= OnPreviewDrawn;
+        var entry = _renderingEntry!;
+        entry.Preview!.RenderTargetUpdateMode = SubViewport.UpdateMode.Disabled;
+        _renderingSource!.QueueFree();
+        entry.Placeholder.Hide();
+        _renderingEntry = null;
+        _renderingSource = null;
+        _previewReady = false;
+        _previewRequested = false;
+        _visibleDirty = true;
+    }
+
+    public override void _ExitTree()
+    {
+        RenderingServer.FramePostDraw -= OnPreviewDrawn;
+    }
+
+    private static void FreezePreview(Node node)
+    {
+        // 局外卡面是静态预览，不需要每张卡的观察器、动画和先古粒子持续运行。
+        node.ProcessMode = ProcessModeEnum.Disabled;
+        if (node is Control control) control.MouseFilter = MouseFilterEnum.Ignore;
+        if (node is GpuParticles2D particles) { particles.Emitting = false; particles.Hide(); }
+        if (node is CpuParticles2D cpuParticles) { cpuParticles.Emitting = false; cpuParticles.Hide(); }
+        foreach (Node child in node.GetChildren()) FreezePreview(child);
     }
 
     // 首选：游戏自己的卡工厂 NCard.Create（图鉴、手牌同款），但**不套图鉴的 grid_card_holder**：
@@ -267,32 +393,22 @@ public partial class ExtraDeckPickerScreen : Control
         NCard card = NCard.Create(model.ToMutable(), ModelVisibility.Visible)
                      ?? throw new InvalidOperationException("NCard.Create 返回了 null");
         wrapper.AddChild(card);
-        // 卡面视觉以节点原点为中心（卡框 300×422，费用徽章再往左上凸一点），
-        // 缩放基准设成节点原点，再把"外框左上角"对到瓦片左上角。
-        card.Scale = new Vector2(_cardScale, _cardScale);
-        card.PivotOffset = Vector2.Zero;
-        card.Position = -CardVisualBox.Position * _cardScale;
         // 卡面数据必须显式刷新一次：卡场景自带占位文本（标题停在 "Broken Card"、费用停在 0、
         // 星标常驻），要调 UpdateVisuals 才会用卡牌数据覆盖（意图卡那边就是这么做才显示正常的）。
-        card.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
-        // 费用 / 星标：局外没有战斗上下文，卡场景不会自己填，按卡牌数据直接写（费用=卡的真实费用；
-        // 星标只在卡真的带星费时才显示）。
+        // 局外按卡组预览，不能用 Hand：否则会判定无法打出并在费用图标上画红线。
+        card.SetForceUnpoweredPreview(true);
+        card.UpdateVisuals(PileType.Deck, CardPreviewMode.Normal);
+        // 统一为局外的基础费用显示，并隐藏不适用于此处的战斗标记。
         ApplyCostAndStar(card, model);
-        // 描述兜底：图鉴里能看到描述，但如果这条路径也没填上（占位文本），就用我们自己算的文本
-        ApplyDescriptionText(card, model);
         // 点击交给外层 wrapper；卡面自己不吃鼠标（否则鼠标移上去会触发它自带的悬停放大）
         card.MouseFilter = MouseFilterEnum.Ignore;
 
-        wrapper.CustomMinimumSize = CardVisualBox.Size * _cardScale;
         return card;
     }
 
     // 兜底：不依赖游戏卡场景，自己拼一张卡（卡图 + 卡名 + 描述）
     private static Control BuildSimpleCardVisual(CardModel model, Control wrapper)
     {
-        const float width = 240f;
-        wrapper.CustomMinimumSize = new Vector2(width, 340f);
-
         var panel = new PanelContainer();
         wrapper.AddChild(panel);
         panel.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
@@ -303,8 +419,8 @@ public partial class ExtraDeckPickerScreen : Control
         var picture = new TextureRect
         {
             Texture = model.Portrait,
-            CustomMinimumSize = new Vector2(width, 160f),
-            ExpandMode = TextureRect.ExpandModeEnum.FitWidthProportional,
+            CustomMinimumSize = new Vector2(0f, 140f),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
         };
         column.AddChild(picture);
@@ -341,26 +457,12 @@ public partial class ExtraDeckPickerScreen : Control
         }
     }
 
-    // 把卡面描述标签的文本替换成"算好的描述"
-    private static void ApplyDescriptionText(NCard ncard, CardModel model)
-    {
-        try
-        {
-            string text = ResolveDescription(model);
-            if (ncard.GetNodeOrNull<Control>("%DescriptionLabel") is RichTextLabel label) label.Text = text;
-        }
-        catch (Exception e)
-        {
-            GD.PushWarning($"[SelectSpecialCardMod] 额外卡组：卡面描述填充失败（{model.Title}）：{e.Message}");
-        }
-    }
-
     // 费用与星标：按卡牌数据直接写卡面对应节点
     private static void ApplyCostAndStar(NCard ncard, CardModel model)
     {
         try
         {
-            // 卡名：卡场景自带占位文本 "Broken Card"，直接按卡牌数据写（UpdateVisuals 在局外不填它）
+            // 卡名与费用始终显示规范卡的数据。
             if (ncard.GetNodeOrNull<Control>("CardContainer/TitleLabel") is Label titleLabel)
             {
                 titleLabel.Text = model.Title;
@@ -383,6 +485,8 @@ public partial class ExtraDeckPickerScreen : Control
             // 星标（原版某个角色的星费机制）：本 mod 的卡全部只有能量费用，
             // 代码里没有任何星费设置（已核对：只有 EnergyCost.CostsX 的用法），所以统一隐藏。
             if (ncard.GetNodeOrNull<Control>("CardContainer/StarIcon") is { } star) star.Visible = false;
+            if (ncard.GetNodeOrNull<Control>("%UnplayableEnergyIcon") is { } energySlash) energySlash.Hide();
+            if (ncard.GetNodeOrNull<Control>("%UnplayableStarIcon") is { } starSlash) starSlash.Hide();
         }
         catch (Exception e)
         {
@@ -436,12 +540,15 @@ public partial class ExtraDeckPickerScreen : Control
         _countLabel!.Text = total.GetFormattedText();
 
         foreach (var entry in _entries)
-        {
-            bool selected = ExtraDeckStore.IsSelected(entry.Model);
-            entry.Tile.Modulate = selected ? Colors.White : new Color(0.62f, 0.62f, 0.62f);
-            int count = ExtraDeckStore.CountOf(entry.Model);
-            entry.Count.Text = count > 0 ? $"×{count}" : "";
-        }
+            RefreshEntrySelection(entry);
+    }
+
+    private static void RefreshEntrySelection(Entry entry)
+    {
+        int count = ExtraDeckStore.CountOf(entry.Model);
+        if (entry.Tile != null)
+            entry.Tile.Modulate = count > 0 ? Colors.White : new Color(0.62f, 0.62f, 0.62f);
+        entry.Count.Text = count > 0 ? $"×{count}" : "";
     }
 
     private static string Loc(string key)

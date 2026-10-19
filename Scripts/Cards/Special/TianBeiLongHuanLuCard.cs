@@ -22,10 +22,9 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 //   打出：造成1点伤害
 //   特殊效果（右键手牌发动）：消耗这张卡，「检索」除自身以外的1张「天杯龙」，那张卡在这个回合可以免费打出
 //   登场：这张卡可以免费打出，变为「调整」，等级上升1星（移除「三星」获得「四星」）
-//   一回合只能打出一次，打出后返回手牌
 //
 // 登场的星级上升同时更新关键字与标签（同调效果的星级判定读的是标签）；
-// 标签底层的 HashSet 直接变更（游戏注释说明标签默认不可变，这里是刻意为之的实例级变化）。
+// 标签由本实例的升星状态生成，不修改原版在克隆之间共享的标签缓存。
 public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpecialEffectCard
 {
     public TianBeiLongHuanLuCard() : base(1, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
@@ -44,6 +43,10 @@ public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpe
     ];
 
     public override int StarLevel => _leveledUp ? 4 : 3;
+
+    public override IEnumerable<CardTag> Tags => _leveledUp
+        ? [..CanonicalTags, SelectTags.TiaoZheng]
+        : CanonicalTags;
 
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.TianBeiLong,
@@ -120,14 +123,6 @@ public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpe
         RemoveKeyword(StarKeyword(3));          // 等级上升1星：3星 → 4星
         AddKeyword(StarKeyword(4));
 
-        if (Tags is HashSet<CardTag> tags)
-        {
-            tags.Remove(StarTag(3));
-            tags.Add(StarTag(4));
-            tags.Remove(SelectTags.TiaoZheng);
-            tags.Add(SelectTags.TiaoZheng);
-        }
-
         _leveledUp = true;
 
         await Task.CompletedTask;
@@ -143,23 +138,9 @@ public class TianBeiLongHuanLuCard : SelectSpecialBaseCard, IDengChangCard, ISpe
         return true;
     }
 
-    // 一回合只能打出一次：按**这张卡自己**记
-    private (CombatId? Combat, int Turn)? _playedThisTurn;
-
-    protected override bool IsPlayable => Owner == null || _playedThisTurn != PerTurnOnce.CurrentKey(Owner);
-
-    // 打出此卡后，返回手牌（一回合一次）
-    public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
+    public override Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        if (Owner == null) return;
-        ShiJiTracker.ReportAttackPlayed(Owner, cardPlay);
-
-        if (cardPlay.Card != this) return;
-
-        var now = PerTurnOnce.CurrentKey(Owner);
-        if (_playedThisTurn == now) return;
-        _playedThisTurn = now;
-
-        await CardPileCmd.Add(this, PileType.Hand);
+        if (Owner != null) ShiJiTracker.ReportAttackPlayed(Owner, cardPlay);
+        return base.AfterCardPlayed(choiceContext, cardPlay);
     }
 }

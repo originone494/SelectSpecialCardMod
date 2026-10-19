@@ -40,7 +40,6 @@ public class KeMoHeHeJunWangCard : SelectSpecialBaseCard, IDengChangCard, IKeMoF
     protected override HashSet<CardTag> CanonicalTags => [
         SelectTags.KeMo,
         SelectTags.KeMoGuaiShou,
-        SelectTags.ExtraMonster,
         SelectTags.RongHeGuaiShou,
         SelectTags.GuangEMo,
         SelectTags.DengChang,
@@ -51,7 +50,6 @@ public class KeMoHeHeJunWangCard : SelectSpecialBaseCard, IDengChangCard, IKeMoF
     protected override IEnumerable<IHoverTip> AdditionalHoverTips => [
         HoverTipFactory.FromKeyword(SelectKeywords.KeMo),
         HoverTipFactory.FromKeyword(SelectKeywords.KeMoGuaiShou),
-        HoverTipFactory.FromKeyword(SelectKeywords.ExtraMonster),
         HoverTipFactory.FromKeyword(SelectKeywords.RongHeGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.GuangEMo),
         HoverTipFactory.FromKeyword(SelectKeywords.DengChang),
@@ -93,7 +91,7 @@ public class KeMoHeHeJunWangCard : SelectSpecialBaseCard, IDengChangCard, IKeMoF
                 context: ctx,
                 player: player,
                 filter: _ => true,
-                source: this)).FirstOrDefault();
+                source: null!)).FirstOrDefault();
             if (toDiscard != null) await CardCmd.Discard(ctx, toDiscard);
         }
 

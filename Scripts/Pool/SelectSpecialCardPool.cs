@@ -6,6 +6,9 @@ using STS2RitsuLib.Interop.AutoRegistration;
 using STS2RitsuLib.Scaffolding.Content;
 using SelectSpecialCardMod.Scripts.Base;
 using SelectSpecialCardMod.Scripts.Intent;
+using SelectSpecialCardMod.Scripts.Tool;
+using MegaCrit.Sts2.Core.Models;
+using MegaCrit.Sts2.Core.Unlocks;
 
 namespace SelectSpecialCardMod.Scripts.Pool;
 
@@ -17,6 +20,10 @@ public class SelectSpecialCardPool : TypeListCardPoolModel
 {
     // 卡池的ID。必须唯一防撞车。
     public override string Title => "SelectSpecialCardModSpecialCardPool";
+
+    // 过滤奖励/商店/事件等通过 GetUnlockedCards 获取的候选；AllCards 保持完整以兼容存档。
+    protected override IEnumerable<CardModel> FilterThroughEpochs(UnlockState unlockState, IEnumerable<CardModel> cards)
+        => base.FilterThroughEpochs(unlockState, cards).Where(c => CardAvailability.IsAllowed(c));
 
     // 卡牌改为经 [RegisterCard(typeof(SelectSpecialCardPool), Inherit = true)]（标在 SelectSpecialBaseCard 上）
     // 由 ModHelper.AddModelToPool 注入；怪物卡因为 MonsterDisplayCard 自己声明了 [RegisterCard(MonsterCardPool)]

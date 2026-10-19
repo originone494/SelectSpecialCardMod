@@ -15,7 +15,6 @@ using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.Models.Powers;
 using MegaCrit.Sts2.Core.ValueProps;
 using SelectSpecialCardMod.Scripts.Base;
-using SelectSpecialCardMod.Scripts.Cards.Other;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Hook;
 using SelectSpecialCardMod.Scripts.Tool;
@@ -55,7 +54,6 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
         SelectTags.ZhuLeiGuaiShou,
         SelectTags.YingDui,
         SelectTags.SongMu,
-        SelectTags.ExtraMonster,
     ];
 
     public override IEnumerable<CardKeyword> CanonicalKeywords => [
@@ -117,15 +115,8 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
         // 条件：手牌存在「珠泪」卡（本卡自己也是珠泪卡，所以在手牌时就已满足）
         if (!PileType.Hand.GetPile(player).Cards.Any(ZhuLeiFilter.IsCard)) return;
 
-        // 是/否询问
-        var shi = player.Creature.CombatState!.CreateCard<ShiCard>(player);
-        var fou = player.Creature.CombatState!.CreateCard<FouCard>(player);
-        CardModel? picked = (await CardSelectCmd.FromSimpleGrid(
-            choiceContext,
-            new List<CardModel> { shi, fou },
-            player,
-            CardPrefs(this, YingDuiChoicePrompt, 1, 1))).FirstOrDefault();
-        if (picked is not ShiCard) return; // 否/取消 → 不发动，照常吃伤害
+        // ①发动应对；②不发动，照常受到伤害。
+        if (!await SelectToolCmd.AskYesNo(choiceContext, player, YingDuiChoicePrompt, source: this)) return;
 
         PerTurnOnce.Mark(player, onceKey);
 
@@ -135,7 +126,7 @@ public class ZhuLeiLuShaKaCard : SelectSpecialBaseCard, ISongMuCard
             context: choiceContext,
             player: player,
             filter: ZhuLeiFilter.IsCard,
-            source: this)).ToList();
+            source: null!)).ToList();
         if (selected.Count == 0) return;
 
         await CardCmd.Discard(choiceContext, selected[0]);

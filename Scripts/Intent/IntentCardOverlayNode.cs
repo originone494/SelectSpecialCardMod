@@ -9,23 +9,30 @@ using MegaCrit.Sts2.Core.Entities.Cards;
 using MegaCrit.Sts2.Core.Entities.Creatures;
 using MegaCrit.Sts2.Core.Models;
 using MegaCrit.Sts2.Core.MonsterMoves.Intents;
+using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
+using MegaCrit.Sts2.Core.Nodes.Screens.ScreenContext;
 using MegaCrit.Sts2.Core.Audio.Debug;
 using MegaCrit.Sts2.Core.Helpers;
 using MegaCrit.Sts2.Core.Nodes.Vfx.Cards;
+using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Intent;
 
 // 意图卡牌悬浮层：挂在 NCreature（怪物 UI 节点）下。
 // 结构 = 固定容器（本节点）＋ 内部居中的卡行（_row）：
 //   · 容器自身只跟「怪物头顶正上方的锚点」走，定位与卡牌数量无关——增删卡牌不会移动容器；
-//   · 卡片统一放进 _row，_row 每帧水平居中于容器原点、底边贴在容器原点，
+//   · 当前卡放进 _row，并独立水平居中于容器原点；后续叠卡附在旁边，
 //     所以卡片永远显示在锚点正上方（卡数变化只影响卡行自身）。
 // 生命周期：随 NCreature 一起销毁，无需手动清理。
 public partial class IntentCardOverlayNode : Control
 {
+    private static readonly HashSet<IntentCardOverlayNode> LiveOverlays = [];
+    private readonly HashSet<CanvasItem> _detachedVisuals = [];
+    private bool _combatScreenVisible;
+    private NPlayerHand? _observedHand;
     // 原版卡面相对较大，整体缩放到合适怪物头顶展示
     private const float CardScale = 0.45f;
 
@@ -33,7 +40,6 @@ public partial class IntentCardOverlayNode : Control
     private string _signature = "";
     private bool _flyOutStarted;
     private ulong _flyOutDeadline;
-    private bool _positionInitialized;
     private ulong _nextSignatureCheckMsec;
     // 强夺飞卡期间暂缓重建（否则新队首会立刻顶掉正在飞向手牌区的那张卡）
     private ulong _rebuildSuppressUntil;
@@ -46,6 +52,18 @@ public partial class IntentCardOverlayNode : Control
     // 固定容器内部的卡行：所有意图卡都挂在这里。
     // 刻意**不用 HBoxContainer**：容器最小尺寸/锚点/枢轴会互相影响，手动排版才能保证严格居中。
     private Control? _row;
+    private IntentFutureStackNode? _future;
+    private ulong _nextFutureRefreshMsec;
+    private bool _resolvingIntent;
+    private bool _previewAfterPlay;
+    private bool _promotionInProgress;
+    private bool _deferredHandRefresh;
+    private Vector2 _reservedCurrentSize;
+    private float _currentRowWidth;
+    private Tween? _promotionTween;
+    private bool _intentFlightFinished;
+    private bool _intentEffectFinished;
+    private int _playbackVersion;
 
     // 卡与卡之间的间距
     private const float CardSeparation = 16f;
@@ -62,24 +80,97 @@ public partial class IntentCardOverlayNode : Control
 
     public override void _Ready()
     {
+        LiveOverlays.Add(this);
         _creature = GetParent() as NCreature;
         // 容器本身不参与布局，只当固定锚点；卡片统一放进内部卡行（由 LayoutRow 手动居中排列）
-        _row = new Control { Name = "IntentCardRow" };
+        // 跨敌人使用统一层级，避免后绘制敌人的灰色叠卡盖住其他敌人的当前行动。
+        _row = new Control { Name = "IntentCardRow", ZAsRelative = false, ZIndex = 40 };
         AddChild(_row);
+        _future = new IntentFutureStackNode
+        {
+            Name = "FutureIntentCards", Visible = false,
+            CardScale = CardScale, ConfigureCard = ApplyDescriptionSize,
+            IsCoveredByCurrentIntent = IsOverCurrentIntent,
+        };
+        AddChild(_future);
         IntentCardFlySync.CardHit += OnFlySyncCardHit;
+        ActiveScreenContext.Instance.Updated += SyncScreenVisibility;
+        SyncScreenVisibility();
         // 右键敌人 → 查看意图卡池（Hitbox 是怪物身上覆盖的可交互区域）
         _creature?.Hitbox?.Connect(Control.SignalName.GuiInput, Callable.From<InputEvent>(OnCreatureGuiInput));
     }
 
     public override void _ExitTree()
     {
+        LiveOverlays.Remove(this);
         IntentCardFlySync.CardHit -= OnFlySyncCardHit;
+        ActiveScreenContext.Instance.Updated -= SyncScreenVisibility;
+        ObservePlayerHand(null);
+        foreach (var visual in _detachedVisuals)
+            if (GodotObject.IsInstanceValid(visual)) visual.Visible = false;
+        _detachedVisuals.Clear();
         ClosePool();
+    }
+
+    private void SyncScreenVisibility()
+    {
+        var room = NCombatRoom.Instance;
+        var hand = room?.Ui?.Hand;
+        ObservePlayerHand(hand);
+        // 手牌选择不切换ActiveScreenContext；必须单独检查本机手牌的选择模式。
+        // 即使选牌时点了窥视，也保持隐藏，避免高层级意图遮挡选项。
+        SetCombatVisibility(room != null && !GetTree().Paused
+            && ActiveScreenContext.Instance.IsCurrent(room) && hand?.IsInCardSelection != true);
+    }
+
+    private void ObservePlayerHand(NPlayerHand? hand)
+    {
+        if (ReferenceEquals(_observedHand, hand)) return;
+        if (_observedHand != null && GodotObject.IsInstanceValid(_observedHand))
+            _observedHand.ModeChanged -= SyncScreenVisibility;
+        _observedHand = hand;
+        if (_observedHand != null && GodotObject.IsInstanceValid(_observedHand))
+            _observedHand.ModeChanged += SyncScreenVisibility;
+    }
+
+    private void SetCombatVisibility(bool show)
+    {
+        _detachedVisuals.RemoveWhere(visual => !GodotObject.IsInstanceValid(visual));
+        if (_combatScreenVisible == show && Visible == show) return;
+        _combatScreenVisible = show;
+        Visible = show;
+        // TopLevel飞卡与转交原版VFX的节点不能只依赖悬浮层自身的Visible。
+        foreach (var visual in _detachedVisuals) visual.Visible = show;
+        if (!show)
+        {
+            _future?.SetInteractive(false);
+            if (_energyLabel != null && GodotObject.IsInstanceValid(_energyLabel)) _energyLabel.Visible = false;
+            ClosePool();
+        }
+    }
+
+    private void TrackDetachedVisual(CanvasItem visual)
+    {
+        _detachedVisuals.Add(visual);
+        visual.Visible = _combatScreenVisible;
+    }
+
+    private static bool IsOverCurrentIntent(Vector2 pointer)
+    {
+        foreach (var overlay in LiveOverlays)
+        {
+            if (!overlay.IsVisibleInTree()) continue;
+            foreach (var (wrapper, _) in overlay._cards)
+                if (GodotObject.IsInstanceValid(wrapper) && wrapper.IsVisibleInTree() && wrapper.GetGlobalRect().HasPoint(pointer))
+                    return true;
+        }
+        return false;
     }
 
     private void OnFlySyncCardHit(Creature creature)
     {
         if (creature != _creature?.Entity) return;
+        if (PetAlly.IsRegistered(creature)) return;
         // 路线 A：飞卡由 MonsterDeck.PlayTurn → OnCardPlayed 逐张驱动，
         // 忽略拆分/效果命令发出的飞卡信号，避免同一张卡飞两次。
         if (MonsterDeck.IsTracked(creature)) return;
@@ -89,6 +180,12 @@ public partial class IntentCardOverlayNode : Control
     public override void _Process(double delta)
     {
         if (_creature == null || !GodotObject.IsInstanceValid(_creature)) return;
+        // 界面事件立即隐藏，逐帧检查也覆盖延迟入场和界面切换动画中的状态变化。
+        SyncScreenVisibility();
+        if (!_combatScreenVisible) return;
+
+        // 补挂必须早于死亡/空意图等早退；全部旧怪死亡时，也能发现刚生成的替代怪物。
+        if (CombatManager.Instance?.CurrentCombatId != null) IntentCardHook.TryAttachThrottled();
 
         // 卡池面板每帧跟随怪物并检测鼠标离开（放在早退分支之前，保证各状态下都能关闭）
         TickPoolPopup();
@@ -100,23 +197,43 @@ public partial class IntentCardOverlayNode : Control
         bool inCombat = CombatManager.Instance?.CurrentCombatId != null;
         // 路线 A：敌方怪物一律用头顶手牌作为唯一意图展示——原版意图图标隐藏（避免两套预告不一致）
         bool routeA = (!SelectSpecialCardMod.Scripts.Tool.FeatureStatus.Checked || SelectSpecialCardMod.Scripts.Tool.FeatureStatus.MonsterDeck) && inCombat && enemy != null && !enemy.IsPlayer && enemy.Side == CombatSide.Enemy;
-        if (routeA && intentContainer != null) intentContainer.Visible = false;
+        bool petMode = inCombat && PetAlly.IsRegistered(enemy);
+        if ((routeA || petMode) && intentContainer != null) intentContainer.Visible = false;
 
         // 怪物死亡：立即清卡，不等意图清空（游戏在死亡动画播完后才清 NextMove，
         // 若等意图分支处理，卡牌会滞留到动画结束）
         if (inCombat && enemy != null && enemy.IsDead)
         {
-            if (_cards.Count > 0) ClearCards();
+            ClearCards();
 
             _signature = "";
             return;
         }
 
-        if (routeA && enemy != null)
+        SyncFutureCards(routeA, enemy);
+
+        if (petMode && enemy != null)
+        {
+            PetAllyPresentation.EnsureAttached(_creature);
+            var card = PetAlly.IntentOf(enemy);
+            if (card != null && (_cards.Count != 1 || !ReferenceEquals(_cards[0].Card.Model, card)))
+            {
+                ClearCards();
+                BuildRealCard(card);
+                SettleLayoutNow();
+            }
+            if (Time.GetTicksMsec() >= _nextCardRefreshMsec)
+            {
+                _nextCardRefreshMsec = Time.GetTicksMsec() + 200;
+                foreach (var (_, view) in _cards) view.UpdateVisuals(PileType.Hand, CardPreviewMode.Normal);
+            }
+        }
+        else if (routeA && enemy != null)
         {
             // 玩家回合：头顶展示怪物这一手。抽牌后重建；出牌期间由
             // OnCardPlayed 逐张飞出，不在这里重建（避免清掉正在飞的卡）。
             if (enemy.CombatState?.CurrentSide == CombatSide.Player && _cards.Count == 0
+                && !_resolvingIntent && !_promotionInProgress && !_previewAfterPlay
                 && Time.GetTicksMsec() >= _rebuildSuppressUntil)
             {
                 // 手牌为空但牌堆还有牌 → 先补抽（自愈；正常由 PrepareTurn 抽好）
@@ -148,7 +265,7 @@ public partial class IntentCardOverlayNode : Control
             var intents = enemy?.Monster?.NextMove?.Intents;
             if (!inCombat || intents == null || intents.Count == 0)
             {
-                if (_cards.Count > 0)
+                if (_cards.Count > 0 || _future?.Visible == true)
                 {
                     // 怪物死亡：直接清理，不播飞出动画（否则死亡后卡牌还会在原地滞留一秒多）；
                     // 战斗中意图消失（活怪）：把剩余未飞的卡全部快速飞出（兜底，正常应由攻击结算逐张驱动）；
@@ -195,22 +312,15 @@ public partial class IntentCardOverlayNode : Control
         // 固定容器定位：锚点 = **怪物本体（Hitbox）的头顶中点**（全局坐标算），
         // 也就是"怪物头顶正上方的正中央"。只用怪物自己的矩形，不掺原版意图容器
         //（那个容器的宽度会随意图数量变、位置未必居中在怪物身上）。
-        // 容器自身永不因卡数变化而移动；弹性追踪让怪物移动/体型变化时带一点惯性。
-        var agentRect = _creature.Hitbox != null && _creature.Hitbox.Size.X > 0f
+        // 锚点直接跟随头顶中心，卡数变化不改变亮色当前意图的水平中心。
+        var agentRect = petMode ? PetAllyPresentation.BodyRect(_creature)
+            : _creature.Hitbox != null && _creature.Hitbox.Size.X > 0f
             ? _creature.Hitbox.GetGlobalRect()
             : (intentContainer != null ? intentContainer.GetGlobalRect() : new Rect2());
         if (agentRect.Size.X > 0f)
         {
             var anchor = new Vector2(agentRect.Position.X + agentRect.Size.X * 0.5f, agentRect.Position.Y);
-            if (_positionInitialized)
-            {
-                GlobalPosition = GlobalPosition.Lerp(anchor, 1f - Mathf.Exp(-10f * (float)delta));
-            }
-            else
-            {
-                GlobalPosition = anchor;
-                _positionInitialized = true;
-            }
+            GlobalPosition = anchor;
         }
         SyncWrapperSizes();
         LayoutRow();
@@ -218,15 +328,13 @@ public partial class IntentCardOverlayNode : Control
         ClampToViewport();
         SyncEnergyDisplay(routeA, enemy);
 
-        // 定期补挂（节流 2s）：覆盖战斗中途召唤的怪（节点晚于事件入树，事件挂载会漏）
-        IntentCardHook.TryAttachThrottled();
     }
 
-    // 位置钳制：卡行超出可视区域就整体拉回来（保证大体型怪物的意图卡不飞出屏幕，
+    // 位置钳制：卡行超出可视区域或进入顶部信息栏就整体拉回来（保证大体型怪物的意图卡不被遮挡，
     // 必要时允许压在怪物身上）。通过移动容器实现，卡行相对容器保持"居中 + 底边贴锚点"。
     private void ClampToViewport()
     {
-        if (_row == null || _cards.Count == 0) return;
+        if (_row == null) return;
         var size = _row.Size;
         if (size.X <= 0f || size.Y <= 0f) size = _row.GetCombinedMinimumSize();
         if (size.X <= 0f || size.Y <= 0f) return;
@@ -235,8 +343,10 @@ public partial class IntentCardOverlayNode : Control
         var rect = vp.GetVisibleRect();
         var rowGlobal = _row.GlobalPosition;
         float minX = rect.Position.X + 4f;
-        float minY = rect.Position.Y + 4f;
-        float maxX = rect.End.X - size.X - 4f;
+        float minY = SafeTopEdge(rect);
+        // 只按当前卡行限制水平位置，右侧叠卡不能把当前意图从敌人头顶挤偏。
+        float primaryWidth = _currentRowWidth > 0f ? _currentRowWidth : Mathf.Min(size.X, FallbackCardVisualSize.X * CardScale);
+        float maxX = rect.End.X - primaryWidth - 4f;
         float maxY = rect.End.Y - size.Y - 4f;
         float x = Mathf.Clamp(rowGlobal.X, minX, Mathf.Max(minX, maxX));
         float y = Mathf.Clamp(rowGlobal.Y, minY, Mathf.Max(minY, maxY));
@@ -244,12 +354,24 @@ public partial class IntentCardOverlayNode : Control
             GlobalPosition += new Vector2(x, y) - rowGlobal;
     }
 
+    private static float SafeTopEdge(Rect2 viewportRect)
+    {
+        float top = viewportRect.Position.Y + 4f;
+        // NTopBar根节点铺满全屏；必须读取实际背景，不能把根节点的下边缘当成信息栏高度。
+        var background = NRun.Instance?.GlobalUi?.TopBar?.GetNodeOrNull<Control>("BgImage");
+        if (background == null || !GodotObject.IsInstanceValid(background) || !background.IsVisibleInTree()) return top;
+        var bounds = background.GetGlobalRect();
+        if (bounds.Size.Y > 0f && bounds.Intersects(viewportRect))
+            top = Mathf.Max(top, bounds.End.Y + 12f);
+        return top;
+    }
+
     // 每帧同步能量标签：文本变化才重排；死亡/战斗结束（deck 清空）自动隐藏
     private void SyncEnergyDisplay(bool routeA, Creature? enemy)
     {
         // 血条一清零就隐藏：不能只看 IsDead——那是死亡动画播完才翻的标记，
         // 否则会变成"敌人已经倒了、费用文字还挂在血条上"。
-        bool show = routeA && enemy != null && MonsterDeck.IsBuilt(enemy)
+        bool show = _combatScreenVisible && routeA && enemy != null && MonsterDeck.IsBuilt(enemy)
                     && !enemy.IsDead && enemy.IsAlive && enemy.CurrentHp > 0;
         if (!show)
         {
@@ -355,7 +477,8 @@ public partial class IntentCardOverlayNode : Control
     // 每张牌由 OnCardPlayed 逐张飞出，避免清掉正在飞的卡。
     private void RebuildFromHand(Creature? enemy)
     {
-        ClearCards();
+        ClearCards(includeFuture: false);
+        _nextFutureRefreshMsec = 0;
         // 新一手的开始：重置连飞状态。否则上一回合留下的 _flyOutStarted=true +
         // 已过期的超时，会让 _Process 里的兜底逻辑把刚抽上来的手牌当作"未飞完"全部飞掉，
         // 表现为「第一回合能看到卡、第二回合卡消失」。
@@ -367,6 +490,39 @@ public partial class IntentCardOverlayNode : Control
             BuildRealCard(model);
 
         SettleLayoutNow();
+    }
+
+    private void SyncFutureCards(bool routeA, Creature? enemy)
+    {
+        if (_future == null) return;
+        bool show = routeA && enemy?.IsAlive == true && MonsterDeck.IsBuilt(enemy);
+        if (!show)
+        {
+            _future.Visible = false;
+            if (!routeA || enemy?.IsAlive != true) _future.SetModels(Array.Empty<CardModel>(), interactive: false);
+            return;
+        }
+        bool interactive = enemy!.CombatState?.CurrentSide == CombatSide.Player && !_resolvingIntent && !_promotionInProgress;
+        _future.SetInteractive(interactive);
+        // 出牌期间保留出牌前的叠卡；结算后保留已补位的计划，直到正常换手刷新。
+        if (_resolvingIntent || _previewAfterPlay)
+        {
+            _future.Visible = _future.Footprint != Vector2.Zero;
+            return;
+        }
+        // 亮色卡与灰色队列必须使用同一手。换阶段/强制换招或延迟挂载后，
+        // 不能让亮色卡滞留在上一手，同时单独把灰色队列推进到新的一手。
+        var hand = MonsterDeck.HandOf(enemy);
+        if (_cards.Count != hand.Count || _cards.Where((shown, i) => !ReferenceEquals(shown.Card.Model, hand[i])).Any())
+        {
+            if (_promotionInProgress || Time.GetTicksMsec() < _rebuildSuppressUntil) return;
+            RebuildFromHand(enemy);
+        }
+        ulong now = Time.GetTicksMsec();
+        if (now < _nextFutureRefreshMsec) { _future.Visible = _future.Footprint != Vector2.Zero; return; }
+        _nextFutureRefreshMsec = now + 200;
+        _future.SetModels(MonsterDeck.FutureOf(enemy), interactive);
+        _future.Visible = _future.Footprint != Vector2.Zero;
     }
 
     // 建完这一手立刻排版 + 视口钳制一次。
@@ -381,16 +537,113 @@ public partial class IntentCardOverlayNode : Control
     }
 
     // 抽牌后刷新头顶展示（MonsterDeck.PrepareTurn 调用）
-    public void RefreshHand() => RebuildFromHand(_creature?.Entity);
+    public void RefreshHand()
+    {
+        if (_resolvingIntent || _promotionInProgress) { _deferredHandRefresh = true; return; }
+        RebuildFromHand(_creature?.Entity);
+    }
 
     // 怪物打出一张手牌：头顶对应卡飞出（MonsterDeck.PlayTurn 逐张驱动）
     public void OnCardPlayed(CardModel model)
     {
+        _resolvingIntent = true;
+        _previewAfterPlay = false;
+        _intentEffectFinished = false;
+        _intentFlightFinished = true;
+        int version = ++_playbackVersion;
+        _future?.SetInteractive(false);
         var idx = _cards.FindIndex(c => c.Card.Model == model);
         if (idx < 0) return;
         var (wrapper, card) = _cards[idx];
+        _intentFlightFinished = false;
+        _reservedCurrentSize = wrapper.CustomMinimumSize;
         _cards.RemoveAt(idx);
-        FlyOutSingle(wrapper, card, 0f);
+        // 飞出的旧卡不再占据卡行；空位尺寸单独保留，叠卡不会向中间跳动。
+        var takeoff = card.GlobalPosition;
+        wrapper.Reparent(this);
+        card.GlobalPosition = takeoff;
+        FlyOutSingle(wrapper, card, 0f, () =>
+        {
+            if (version != _playbackVersion) return;
+            _intentFlightFinished = true;
+            if (_intentEffectFinished) PromoteResolvedIntent();
+        });
+    }
+
+    // 由MonsterDeck在实际招式（包括多段攻击、强化、自伤等）全部await完成后调用。
+    public void OnCardResolved(bool completed)
+    {
+        _flyOutStarted = false;
+        _flyOutDeadline = 0;
+        _intentEffectFinished = completed;
+        if (!completed)
+        {
+            _resolvingIntent = false;
+            _reservedCurrentSize = Vector2.Zero;
+            _nextFutureRefreshMsec = 0;
+            return;
+        }
+        if (_intentFlightFinished) PromoteResolvedIntent();
+    }
+
+    private void PromoteResolvedIntent()
+    {
+        _resolvingIntent = false;
+        if (_creature?.Entity is not { IsAlive: true } enemy || _row == null || _future == null
+            || !IsInsideTree() || CombatManager.Instance?.CurrentCombatId == null)
+        {
+            _reservedCurrentSize = Vector2.Zero;
+            _nextFutureRefreshMsec = 0;
+            return;
+        }
+
+        // 只读取之后的抽牌计划。待抽废牌可以预告，但此处不把它启用为实际手牌。
+        var plan = MonsterDeck.DrawOf(enemy).ToList();
+        if (plan.Count == 0) { _reservedCurrentSize = Vector2.Zero; return; }
+        var next = plan[0];
+        var future = plan.Skip(1).ToList();
+        Vector2 start = _future.GlobalPosition + FallbackCardVisualSize * CardScale * 0.5f;
+        var taken = _future.TakeFront(next);
+        Control wrapper;
+        NCard card;
+        if (taken is { } front)
+        {
+            (wrapper, card) = front;
+            start = card.GlobalPosition;
+            wrapper.Reparent(_row);
+            wrapper.ZIndex = 0;
+            wrapper.Visible = true;
+            _cards.Add((wrapper, card));
+        }
+        else
+        {
+            BuildRealCard(next);
+            (wrapper, card) = _cards[^1];
+        }
+        _future.SetModels(future, interactive: false);
+        _future.Visible = _future.Footprint != Vector2.Zero;
+        _previewAfterPlay = true;
+        _promotionInProgress = true;
+        _reservedCurrentSize = Vector2.Zero;
+        SyncWrapperSizes();
+        SettleLayoutNow();
+        Vector2 target = ResolveCardSize(card) * CardScale * 0.5f;
+        card.Position = wrapper.GetGlobalTransform().AffineInverse() * start;
+        wrapper.Modulate = IntentFutureStackNode.FutureTint;
+        _promotionTween = CreateTween();
+        _promotionTween.TweenProperty(card, "position", target, 0.32f)
+            .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+        _promotionTween.Parallel().TweenProperty(wrapper, "modulate", Colors.White, 0.32f);
+        _promotionTween.Chain().TweenCallback(Callable.From(() =>
+        {
+            _promotionTween = null;
+            _promotionInProgress = false;
+            if (_deferredHandRefresh)
+            {
+                _deferredHandRefresh = false;
+                RefreshHand();
+            }
+        }));
     }
 
     // 回合结束弃掉剩余手牌：头顶剩余卡一并飞出
@@ -407,9 +660,11 @@ public partial class IntentCardOverlayNode : Control
 
     private void OnCreatureGuiInput(InputEvent ev)
     {
+        if (!_combatScreenVisible) return;
         if (ev is not InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Right }) return;
         var enemy = _creature?.Entity;
         if (enemy == null || enemy.IsDead || enemy.IsPlayer) return;
+        if (PetAlly.IsRegistered(enemy)) return;
         // 只在玩家回合查看：怪物行动期间牌面正在逐张飞出，查看没有意义
         if (enemy.CombatState?.CurrentSide != CombatSide.Player) return;
         // 路线 A：牌堆在手就有内容可看；未建牌堆的怪退回原版意图要求
@@ -583,8 +838,7 @@ public partial class IntentCardOverlayNode : Control
         }
     }
 
-    // 手动排版卡行：整行水平居中于容器原点、底边贴在容器原点（也就是锚点正上方）。
-    // 每张卡的位置与行宽全由这里算，卡数变化只影响这一行，容器永不移动。
+    // 仅当前亮色卡行居中于敌人头顶，后续灰色叠卡附在旁边，不计入居中宽度。
     private void LayoutRow()
     {
         if (_row == null) return;
@@ -602,17 +856,39 @@ public partial class IntentCardOverlayNode : Control
             totalWidth += size.X;
             maxHeight = Mathf.Max(maxHeight, size.Y);
         }
-        if (items.Count == 0)
+        var futureSize = _future?.Visible == true ? _future.Footprint : Vector2.Zero;
+        float currentWidth = totalWidth + (items.Count > 1 ? CardSeparation * (items.Count - 1) : 0f);
+        if (items.Count == 0 && _reservedCurrentSize != Vector2.Zero)
+        {
+            currentWidth = _reservedCurrentSize.X;
+            maxHeight = Mathf.Max(maxHeight, _reservedCurrentSize.Y);
+        }
+        _currentRowWidth = currentWidth;
+        if (items.Count == 0 && futureSize == Vector2.Zero && _reservedCurrentSize == Vector2.Zero)
         {
             _row.Size = Vector2.Zero;
             _row.Position = Vector2.Zero;
             return;
         }
-        if (items.Count > 1) totalWidth += CardSeparation * (items.Count - 1);
+        totalWidth = currentWidth + (futureSize.X > 0f && currentWidth > 0f ? CardSeparation : 0f) + futureSize.X;
+        maxHeight = Mathf.Max(maxHeight, futureSize.Y);
 
-        // 行矩形：水平居中（左边缘在 -行宽/2）、底边贴在原点
+        // 以当前卡（或飞出期间保留的空位）为中心，整组宽度仅用于内容尺寸。
         _row.Size = new Vector2(totalWidth, maxHeight);
-        _row.Position = new Vector2(-totalWidth * 0.5f, -maxHeight);
+        _row.Position = new Vector2(-currentWidth * 0.5f, -maxHeight);
+        if (_future != null && futureSize.X > 0f)
+        {
+            float offset = currentWidth + (currentWidth > 0f ? CardSeparation : 0f);
+            // 贴近屏幕右侧时让叠卡放到左边，保留当前卡的头顶中心位置。
+            if (currentWidth > 0f && IsInsideTree())
+            {
+                var viewport = GetViewport().GetVisibleRect();
+                if (_row.GlobalPosition.X + offset + futureSize.X > viewport.End.X - 4f
+                    && _row.GlobalPosition.X - CardSeparation - futureSize.X >= viewport.Position.X + 4f)
+                    offset = -CardSeparation - futureSize.X;
+            }
+            _future.Position = _row.Position + new Vector2(offset, 0f);
+        }
 
         // 行内每张卡依次从左往右排
         float x = 0f;
@@ -828,6 +1104,7 @@ public partial class IntentCardOverlayNode : Control
         }
 
         _rebuildSuppressUntil = Time.GetTicksMsec() + 600;
+        TrackDetachedVisual(vfx);
         NCombatRoom.Instance?.Ui.AddChildSafely(vfx);
         NDebugAudioManager.Instance?.Play("card_exhaust.mp3");
         TaskHelper.RunSafely(vfx.PlayAnimation());
@@ -851,7 +1128,11 @@ public partial class IntentCardOverlayNode : Control
         var tween = card.CreateTween();
         tween.TweenProperty(card, "global_position", target, 0.4f)
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.In);
-        tween.Chain().TweenCallback(Callable.From(() => wrapper.QueueFree()));
+        tween.Chain().TweenCallback(Callable.From(() =>
+        {
+            _detachedVisuals.Remove(card);
+            wrapper.QueueFree();
+        }));
     }
 
     // 兜底：把剩余未飞的卡全部快速飞出（意图清空 / 攻击信号失联超时）
@@ -867,11 +1148,12 @@ public partial class IntentCardOverlayNode : Control
         _flyOutStarted = false;
     }
 
-    private void FlyOutSingle(Control wrapper, NCard card, float delay)
+    private void FlyOutSingle(Control wrapper, NCard card, float delay, System.Action? onFinished = null)
     {
         if (!GodotObject.IsInstanceValid(card))
         {
             wrapper.QueueFree();
+            onFinished?.Invoke();
             return;
         }
         wrapper.CustomMinimumSize = Vector2.Zero;
@@ -887,7 +1169,12 @@ public partial class IntentCardOverlayNode : Control
         tween.Parallel().TweenProperty(card, "scale", new Vector2(CardScale * 1.35f, CardScale * 1.35f), 0.45f)
             .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
         tween.Chain().TweenProperty(card, "modulate:a", 0.0f, 0.2f).SetDelay(0.3f);
-        tween.Chain().TweenCallback(Callable.From(() => wrapper.QueueFree()));
+        tween.Chain().TweenCallback(Callable.From(() =>
+        {
+            _detachedVisuals.Remove(card);
+            wrapper.QueueFree();
+            onFinished?.Invoke();
+        }));
     }
 
     // 起飞前把卡从"跟着怪物脑袋动的容器"里摘出来。
@@ -895,18 +1182,35 @@ public partial class IntentCardOverlayNode : Control
     // 不这么做的话，飞行动画一结束（tween 停了）卡就重新变成容器的子节点，
     // 怪物的出手动作（往斜上方扑）会把停在屏幕中央的卡一起带跑，看起来就是"抽搐一下往斜上跳"。
     // 注意顺序：先记下当前全局坐标，再开 TopLevel，然后写回去——保证从原位置起飞、不闪一下。
-    private static void DetachForFlight(NCard card)
+    private void DetachForFlight(NCard card)
     {
         if (!GodotObject.IsInstanceValid(card)) return;
         var takeoff = card.GlobalPosition;
         card.TopLevel = true;
         card.GlobalPosition = takeoff;
+        TrackDetachedVisual(card);
     }
 
-    private void ClearCards()
+    private void ClearCards(bool includeFuture = true)
     {
+        _promotionTween?.Kill();
+        _promotionTween = null;
+        _playbackVersion++;
+        _intentFlightFinished = false;
+        _intentEffectFinished = false;
+        _resolvingIntent = false;
+        _previewAfterPlay = false;
+        _promotionInProgress = false;
+        _deferredHandRefresh = false;
+        _reservedCurrentSize = Vector2.Zero;
         _cards.Clear();
         _flyOutStarted = false;
+        if (includeFuture && _future != null)
+        {
+            _future.SetModels(Array.Empty<CardModel>(), interactive: false);
+            _future.Visible = false;
+            _nextFutureRefreshMsec = 0;
+        }
         // 只清空卡行里的卡；容器位置不重置——卡数变化不应让容器移动（能量标签挂在容器上，不受影响）
         if (_row == null) return;
         foreach (Node child in _row.GetChildren())

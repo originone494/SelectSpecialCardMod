@@ -16,7 +16,10 @@ public static class FeatureStatus
     public static void AppliedPatch(Type type) => Applied.Add(type);
     public static void Complete()
     {
-        Arrival = Applied.Contains(typeof(DrawWindowPatch));
+        Arrival = Applied.Contains(typeof(DrawWindowPatch))
+            && Applied.Contains(typeof(SelectSpecialCardMod.Scripts.Hook.CardPlayEffectQueuePatch))
+            && Applied.Contains(typeof(SelectSpecialCardMod.Scripts.Hook.CardEffectBoundaryPatch))
+            && Applied.Contains(typeof(SelectSpecialCardMod.Scripts.Hook.CardDeferredTriggerPatch));
         AttackProtection = new[] { typeof(AttackDamageScopePatch), typeof(AttackDamageOriginPatch),
             typeof(ResponseDamageScopePatch), typeof(ResponseDamageBlockPatch), typeof(ResponseHpLossPatch),
             typeof(ResponseAttackDamageAmountPatch) }.All(Applied.Contains);

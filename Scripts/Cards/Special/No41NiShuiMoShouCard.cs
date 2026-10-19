@@ -33,7 +33,7 @@ public class No41NiShuiMoShouCard : XyzMonsterCard
     [SavedProperty] public int UpkeepTurn { get; set; } = -1;
     [SavedProperty] public int BlockTurn { get; set; } = -1;
 
-    public override bool IsValidMaterial(CardModel card)
+    protected override bool MatchesMaterial(CardModel card)
         => card.Owner == Owner && card.Pile?.Type == PileType.Hand && !card.HasBeenRemovedFromState
            && (card is SelectSpecialBaseCard { StarLevel: 4 } || card.Tags.Contains(SelectTags.Xing4)
                || card.Keywords.Contains(SelectKeywords.Xing4));

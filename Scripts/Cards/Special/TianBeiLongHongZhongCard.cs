@@ -20,7 +20,7 @@ namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
 // 游戏王「天盃龍チュンドラ」（Tenpai Dragon Chundra）：
 //   打出：造成7点伤害
-//   一回合只能打出一次，「检索」除自身以外的1张「天杯龙」卡，打出后返回手牌，之后可以进行一次「同调」
+//   「检索」除自身以外的1张「天杯龙」卡，之后可以进行一次「同调」
 public class TianBeiLongHongZhongCard : SelectSpecialBaseCard
 {
     public TianBeiLongHongZhongCard() : base(1, CardType.Attack, CardRarity.Ancient, TargetType.AnyEnemy)
@@ -66,22 +66,13 @@ public class TianBeiLongHongZhongCard : SelectSpecialBaseCard
             .Execute(choiceContext);
     }
 
-    // 一回合只能打出一次：按**这张卡自己**记（文本写的是「一回合一次」，不是「同名卡一回合一次」）
-    private (CombatId? Combat, int Turn)? _playedThisTurn;
-
-    protected override bool IsPlayable => Owner == null || _playedThisTurn != PerTurnOnce.CurrentKey(Owner);
-
-    // 打出此卡后：「检索」除自身以外的1张「天杯龙」卡，返回手牌，之后可以进行一次「同调」（一回合一次）
+    // 打出此卡后：「检索」除自身以外的1张「天杯龙」卡，之后可以进行一次「同调」
     public override async Task AfterCardPlayed(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
         if (Owner == null) return;
         ShiJiTracker.ReportAttackPlayed(Owner, cardPlay);
 
         if (cardPlay.Card != this) return;
-
-        var now = PerTurnOnce.CurrentKey(Owner);
-        if (_playedThisTurn == now) return;
-        _playedThisTurn = now;
 
         // 「检索」除自身以外的 1 张「天杯龙」卡（加入手牌）
         await SelectToolCmd.RetrieverCard(
@@ -90,9 +81,6 @@ public class TianBeiLongHongZhongCard : SelectSpecialBaseCard
             c => c.Tags.Contains(SelectTags.TianBeiLong) && c.Id != Id,
             p => p is SelectSpecialCardPool,
             1, source: this);
-
-        // 打出后返回手牌
-        await CardPileCmd.Add(this, PileType.Hand);
 
         // 可以进行一次「同调」
         await TongDiao.TryTongDiao(choiceContext, Owner, this);

@@ -15,7 +15,7 @@ public class YiXiangMingJueZeCard : YiXiangMingChoiceCard
             await CardPileCmd.Draw(context, 2m, Owner);
         else
             await CardRetrieval.Retrieve(context, Owner,
-                c => c.Tags.Contains(SelectTags.YiXiangMingMoFa) || c.Tags.Contains(SelectTags.YiXiangMingXianJing),
+                c => c.Id != Id && (c.Tags.Contains(SelectTags.YiXiangMingMoFa) || c.Tags.Contains(SelectTags.YiXiangMingXianJing)),
                 new RetrievalOptions(Minimum: 1, Confirm: true), p => p is SelectSpecialCardPool, source: this);
     }
 }

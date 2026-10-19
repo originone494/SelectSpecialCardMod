@@ -63,7 +63,7 @@ public static class ExtraDeckRunState
                     sync.SyncLocalChoice(player, choice, PlayerChoiceResult.FromCanonicalCards(cards));
                 }
                 else cards = (await RunLifetime.Wait(sync.WaitForRemoteChoice(player, choice), run)).AsCanonicalCards().ToList();
-                data.InitialCards = cards.Where(c => c.Tags.Contains(SelectTags.ExtraMonster))
+                data.InitialCards = cards.Where(c => CardClassification.IsExtraMonster(c))
                     .GroupBy(c => c.Id).SelectMany(g => g.Take(ExtraDeckStore.MaxCopiesPerName))
                     .Take(ExtraDeckStore.MaxCards).Select(c => c.Id.ToString()).ToList();
             }

@@ -20,7 +20,7 @@ using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Cards.Special;
 
-// 右键特殊效果：选择符合意图的敌人，弃一张其他手牌并击晕；送墓仍检索珠泪下级怪兽。
+// 右键特殊效果：选择符合意图的敌人，弃一张其他手牌并击晕；送墓仍检索珠泪怪兽。
 public class ZhuLeiAiChangCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEffectCard
 {
     private static LocString TargetPrompt { get; } = new("card_selection", "SELECT_SPECIAL_CARD_MOD_PROMPT_ZHU_LEI_AI_CHANG_TARGET");
@@ -39,7 +39,6 @@ public class ZhuLeiAiChangCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEff
         HoverTipFactory.FromKeyword(SelectKeywords.SongMu),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLei),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiGuaiShou),
-        HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXiaJiGuaiShou),
         HoverTipFactory.FromKeyword(SelectKeywords.Retriever),
         HoverTipFactory.FromKeyword(SelectKeywords.ZhuLeiXianJing),
     ];
@@ -106,7 +105,7 @@ public class ZhuLeiAiChangCard : SelectSpecialBaseCard, ISongMuCard, ISpecialEff
     public async Task SongMuSpecial(PlayerChoiceContext ctx, Player player)
     {
         await SelectToolCmd.RetrieverCard(ctx, player,
-            c => ZhuLeiFilter.IsLowerMonster(c), p => p is SelectSpecialCardPool,
+            c => ZhuLeiFilter.IsMonster(c), p => p is SelectSpecialCardPool,
             1, source: this);
     }
 }

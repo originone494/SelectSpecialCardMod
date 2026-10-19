@@ -21,18 +21,14 @@ public class DaiZuiADaiCard : SelectSpecialBaseCard
 
     protected override async Task OnPlay(PlayerChoiceContext choiceContext, CardPlay cardPlay)
     {
-        if (cardPlay.Target?.Monster == null || CombatState == null) return;
+        if (cardPlay.Target?.Monster == null || !cardPlay.Target.IsAlive || CombatState == null) return;
 
         var original = cardPlay.Target;
 
         // 落点：优先占空闲槽位；入场后强制检查"不许挡住任何敌人"（见 CopySpawnSlot 注释）
         string? slot = CopySpawnSlot.PickSlot(CombatState);
 
-        var copy = await CreatureCmd.Add(
-            original.Monster.CanonicalInstance.ToMutable(),
-            CombatState,
-            CombatSide.Enemy,
-            slot);
+        var copy = await EnemyCopySpawn.Add(original, CombatState, slot);
 
         CopySpawnSlot.EnsureClearOf(copy, original);
 
@@ -45,5 +41,7 @@ public class DaiZuiADaiCard : SelectSpecialBaseCard
         var daiZuiPower = (DaiZuiADaiPower)power;
         daiZuiPower.Original = original;
         await PowerCmd.Apply(choiceContext, power, copy, 1, Owner.Creature, this);
+        // 本体可能在异步入场／施加能力期间死亡，补上已经错过的死亡事件。
+        if (original.IsDead && copy.IsAlive) await CreatureCmd.Kill(copy);
     }
 }

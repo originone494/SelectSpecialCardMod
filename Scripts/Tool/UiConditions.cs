@@ -13,6 +13,11 @@ public static class UiConditions
     public static void Invalidate() => _revision++;
     public static bool SpecialEffect(CardModel card) => Special.Get(card, _revision, Time.GetTicksMsec(), () => Hook.SpecialEffectHook.CanActivate(card));
     public static bool ExtraSummon(Player p) => Summon.Get(p, _revision, Time.GetTicksMsec(), () => ExtraDeckSummonHook.CanSummonAny(p));
+    public static bool YaoShengCenter(CardModel card)
+        => card.Tags.Contains(Custom.SelectTags.YaoSheng) && card.CombatState != null
+           && card.Owner?.Creature.IsAlive == true
+           && !MegaCrit.Sts2.Core.Combat.CombatManager.Instance.IsOverOrEnding
+           && Cards.Special.YaoShengHuaShiLuXiNaCard.IsAtHandCenter(card);
 }
 [HarmonyPatch]
 public static class UiRuleInvalidationPatch

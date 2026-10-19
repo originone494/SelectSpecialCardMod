@@ -44,7 +44,8 @@ public class AoLiHaGangDiErJieJiePower : SelectSpecialBasePower
             context: choiceContext,
             player: Owner.Player!,
             filter: null,
-            source: this)).ToList();
+            // 能力触发不经过卡牌打出，选中的卡应立即回到手牌显示。
+            source: null!)).ToList();
         if (selected.Count == 0) return;
 
         // 永久获得「保留」关键字（不是临时保留一回合）
@@ -67,7 +68,7 @@ public class AoLiHaGangDiErJieJiePower : SelectSpecialBasePower
             context: new BlockingPlayerChoiceContext(),
             player: Owner.Player,
             filter: null,
-            source: this)).ToList();
+            source: null!)).ToList();
         if (selected.Count == 0 || selected[0].Pile?.Type != PileType.Hand) return;
 
         if (!AttackDamageNegate.Mark(command, Owner)) return;

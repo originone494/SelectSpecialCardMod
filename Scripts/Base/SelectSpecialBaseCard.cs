@@ -12,6 +12,7 @@ using MegaCrit.Sts2.Core.HoverTips;
 using SelectSpecialCardMod.Scripts.Custom;
 using SelectSpecialCardMod.Scripts.Hook;
 using SelectSpecialCardMod.Scripts.Pool;
+using SelectSpecialCardMod.Scripts.Tool;
 
 namespace SelectSpecialCardMod.Scripts.Base;
 
@@ -19,6 +20,22 @@ namespace SelectSpecialCardMod.Scripts.Base;
 public abstract class SelectSpecialBaseCard(int energyCost, CardType type, CardRarity rarity, TargetType targetType, bool shouldShowInCardLibrary = true)
     : ModCardTemplate(energyCost, type, rarity, targetType, shouldShowInCardLibrary)
 {
+    public override void AfterCreated()
+    {
+        base.AfterCreated();
+        SpecialCardUpgrade.Ensure(this);
+    }
+
+    protected override void AfterCloned()
+    {
+        base.AfterCloned();
+        // 从玩家已有实例复制时补齐；模板转可变实例时尚无拥有者，不能提前干扰反序列化。
+        if (IsMutable && Owner != null) SpecialCardUpgrade.Ensure(this);
+    }
+
+    // 特殊卡升级仅用于外观；禁止派生卡再增加费用、数值或其他升级效果。
+    protected sealed override void OnUpgrade() { }
+
     // ── 星级 ──
     // 有星级的卡覆写它（0 = 没有星级）。基类据此**自动**挂上对应的「N星」标签与悬停提示，
     // 卡本身不用再手写星级标签/提示；同调、超量这类"按星级算"的条件也统一读这个数字。
@@ -88,6 +105,7 @@ public abstract class SelectSpecialBaseCard(int energyCost, CardType type, CardR
     {
         await base.AfterCardChangedPiles(card, oldPileType, clonedBy);
         if (card != this) return;
+        SpecialCardUpgrade.Ensure(this);
         await DengChangHook.OnCardAddedToHand(card);
     }
 
@@ -107,8 +125,8 @@ public abstract class SelectSpecialBaseCard(int energyCost, CardType type, CardR
     {
         var p = new LocString(prompt.LocTable, prompt.LocEntryKey);
         if (source != null) p.Add("CardName", source.Title);
-        // 必选流程即使候选数量刚好够，也必须由玩家选择并确认。
-        return new CardSelectorPrefs(p, min, max) { RequireManualConfirmation = min > 0 };
+        // 必选/可选流程均须玩家手动选择并确认；不因候选刚好够而代选。
+        return new CardSelectorPrefs(p, min, max) { RequireManualConfirmation = true };
     }
 
     // 包括可选流程也要求手动确认；保留现有调用入口。
